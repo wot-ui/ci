@@ -1,7 +1,7 @@
 /*
  * @Author: weisheng
  * @Date: 2026-04-15 15:49:58
- * @LastEditTime: 2026-04-16 11:52:27
+ * @LastEditTime: 2026-04-16 14:02:40
  * @LastEditors: weisheng
  * @Description:
  * @FilePath: /ci/src/platforms/weixin.ts
@@ -9,6 +9,8 @@
  */
 import type { CIConfig, PlatformUploadResult, UploadContext } from '../types'
 import { access } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import path from 'node:path'
 import process from 'node:process'
 import * as ciImport from 'miniprogram-ci'
 import { UploadError } from '../errors'
@@ -29,11 +31,14 @@ interface WeixinCIAPI {
   upload: (options: Record<string, unknown>) => Promise<WeixinUploadRawResult>
 }
 
+const require = createRequire(import.meta.url)
+
 const ciApi = (
   Object.prototype.hasOwnProperty.call(ciImport, 'default')
     ? (ciImport as unknown as { default: WeixinCIAPI }).default
     : ciImport
 ) as WeixinCIAPI
+const runtimeMiniprogramCiNodeModulesPath = resolveRuntimeNodeModulesPath('miniprogram-ci')
 
 export async function uploadWeixin(config: CIConfig, options: UploadContext = {}): Promise<PlatformUploadResult<WeixinUploadRawResult>> {
   if (!config.weixin)
@@ -60,14 +65,16 @@ export async function uploadWeixin(config: CIConfig, options: UploadContext = {}
       projectPath,
       type: config.weixin.type ?? 'miniProgram',
     })
-    const raw = await ciApi.upload({
-      desc: config.desc,
-      onProgressUpdate: undefined,
-      project,
-      robot: config.weixin.robot,
-      setting: config.weixin.setting,
-      version: config.version,
-    }) as WeixinUploadRawResult
+    const raw = await withNodePath(runtimeMiniprogramCiNodeModulesPath, async () => {
+      return await ciApi.upload({
+        desc: config.desc,
+        onProgressUpdate: undefined,
+        project,
+        robot: config.weixin?.robot,
+        setting: config.weixin?.setting,
+        version: config.version,
+      }) as WeixinUploadRawResult
+    })
 
     return {
       desc: config.desc,
@@ -80,6 +87,48 @@ export async function uploadWeixin(config: CIConfig, options: UploadContext = {}
   catch (error) {
     throw new UploadError('微信小程序上传失败', error)
   }
+}
+
+function resolveRuntimeNodeModulesPath(packageName: string): string | undefined {
+  try {
+    const packageJsonPath = require.resolve(`${packageName}/package.json`)
+    return path.dirname(path.dirname(packageJsonPath))
+  }
+  catch {
+    return undefined
+  }
+}
+
+async function withNodePath<T>(entry: string | undefined, runner: () => Promise<T>): Promise<T> {
+  if (!entry)
+    return runner()
+
+  const originalNodePath = process.env.NODE_PATH
+  const nextNodePath = mergeNodePathEntries(entry, originalNodePath)
+
+  if (nextNodePath === originalNodePath)
+    return runner()
+
+  process.env.NODE_PATH = nextNodePath
+
+  try {
+    return await runner()
+  }
+  finally {
+    if (originalNodePath === undefined)
+      delete process.env.NODE_PATH
+    else
+      process.env.NODE_PATH = originalNodePath
+  }
+}
+
+function mergeNodePathEntries(entry: string, existingNodePath?: string): string {
+  const entries = [
+    entry,
+    ...(existingNodePath?.split(path.delimiter) ?? []),
+  ].filter(Boolean)
+
+  return [...new Set(entries)].join(path.delimiter)
 }
 
 function createWeixinMessage(version: string, packages?: WeixinSubPackageInfo[], desc?: string): string {

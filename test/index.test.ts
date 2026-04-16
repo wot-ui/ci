@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,6 +44,7 @@ const { parseCliArgs, runCli } = await import('../src/cli')
 const { formatErrorStack, UploadError, formatErrorReport } = await import('../src/errors')
 const { createCliLogger } = await import('../src/logger')
 const { appendDesc, createCliConfigLoadedMessage, createCliHelpText, createCliUploadStartMessage } = await import('../src/messages')
+const require = createRequire(import.meta.url)
 
 let tempRoot = ''
 
@@ -202,6 +204,43 @@ describe('platform uploads', () => {
       version: '1.0.0',
     }))
     expect(result.platform).toBe('weixin')
+  })
+
+  it('injects miniprogram-ci node_modules into NODE_PATH during weixin upload', async () => {
+    await writeFile(path.join(tempRoot, 'private.key'), 'secret')
+
+    const originalNodePath = process.env.NODE_PATH
+    const expectedNodePathEntry = path.dirname(path.dirname(require.resolve('miniprogram-ci/package.json')))
+    let observedNodePath = ''
+
+    process.env.NODE_PATH = '/existing/node/path'
+    weixinUpload.mockImplementationOnce(async () => {
+      observedNodePath = process.env.NODE_PATH ?? ''
+      return {
+        subPackageInfo: [{ name: '__FULL__', size: 2048 }],
+      }
+    })
+
+    try {
+      await uploadWeixin({
+        version: '1.0.0',
+        weixin: {
+          appid: 'wx123',
+          privateKeyPath: 'private.key',
+          projectPath: 'dist/weixin',
+        },
+      }, { cwd: tempRoot })
+    }
+    finally {
+      if (originalNodePath === undefined)
+        delete process.env.NODE_PATH
+      else
+        process.env.NODE_PATH = originalNodePath
+    }
+
+    expect(observedNodePath.split(path.delimiter)).toContain(expectedNodePathEntry)
+    expect(observedNodePath.split(path.delimiter)).toContain('/existing/node/path')
+    expect(process.env.NODE_PATH).toBe(originalNodePath)
   })
 
   it('handles alipay uploads with private key file resolution', async () => {
