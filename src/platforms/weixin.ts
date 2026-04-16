@@ -1,7 +1,16 @@
+/*
+ * @Author: weisheng
+ * @Date: 2026-04-15 15:49:58
+ * @LastEditTime: 2026-04-16 11:52:27
+ * @LastEditors: weisheng
+ * @Description:
+ * @FilePath: /ci/src/platforms/weixin.ts
+ * 记得注释
+ */
 import type { CIConfig, PlatformUploadResult, UploadContext } from '../types'
 import { access } from 'node:fs/promises'
 import process from 'node:process'
-import * as ci from 'miniprogram-ci'
+import * as ciImport from 'miniprogram-ci'
 import { UploadError } from '../errors'
 import { appendDesc } from '../messages'
 import { resolveFromCwd } from '../utils/path'
@@ -14,6 +23,17 @@ interface WeixinSubPackageInfo {
 interface WeixinUploadRawResult {
   subPackageInfo?: WeixinSubPackageInfo[]
 }
+
+interface WeixinCIAPI {
+  Project: new (options: Record<string, unknown>) => unknown
+  upload: (options: Record<string, unknown>) => Promise<WeixinUploadRawResult>
+}
+
+const ciApi = (
+  Object.prototype.hasOwnProperty.call(ciImport, 'default')
+    ? (ciImport as unknown as { default: WeixinCIAPI }).default
+    : ciImport
+) as WeixinCIAPI
 
 export async function uploadWeixin(config: CIConfig, options: UploadContext = {}): Promise<PlatformUploadResult<WeixinUploadRawResult>> {
   if (!config.weixin)
@@ -33,14 +53,14 @@ export async function uploadWeixin(config: CIConfig, options: UploadContext = {}
   }
 
   try {
-    const project = new ci.Project({
+    const project = new ciApi.Project({
       appid: config.weixin.appid,
       ignores: config.weixin.ignores,
       privateKeyPath,
       projectPath,
       type: config.weixin.type ?? 'miniProgram',
     })
-    const raw = await ci.upload({
+    const raw = await ciApi.upload({
       desc: config.desc,
       onProgressUpdate: undefined,
       project,
