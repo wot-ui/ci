@@ -28,12 +28,14 @@
 
 push 到 main 仍仅触发微信 upload dry-run。手动任务使用队列，不因后续 push 自动取消；不同 ref 的任务仍可能并发使用同一个应用或 robot，验收时需协调这些资源。
 
-每次运行的 artifact `playground-upload-<run_id>` 包含：
+artifact `playground-upload-<run_id>` 按实际执行步骤和已生成文件包含以下内容：
 
 - `validation-context.json`：commit、CLI / 三个 SDK 精确版本、Node、系统、Runner 镜像、项目类型、命令、模式、run URL / attempt 和各步骤 outcome。
 - `plan.json` / `plan-summary.md`：本地校验结果。
 - `upload.json` / `upload-summary.md` 或 `preview.json` / `preview-summary.md`：真实调用结果。
 - 预览成功并写出文件时的 `preview.png`；构建产物中的 project.config.json。
+
+构建、凭证准备或 doctor 提前失败时，后续文件可能不会生成；未选择的 upload / preview 分支也不会生成结果。缺少 `plan.json` 或所选命令的结果文件，表示对应步骤未执行或未完成结果写出，应结合步骤 outcome 和日志判断。文件存在也不代表执行成功，应检查退出状态及 JSON 内容；没有任何匹配文件时不会创建 artifact。
 
 元数据使用字段白名单，不保存私钥、token 或环境变量全集。SDK 尚未安装时精确版本为 null，该运行不能用作对应 SDK 组合的通过证据。微信项目类型记录为 playground 固定配置的 miniProgram；其它项目类型需独立记录。
 

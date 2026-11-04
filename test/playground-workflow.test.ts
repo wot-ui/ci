@@ -17,6 +17,10 @@ const workflow = parse(await readFile(path.join(repoRoot, '.github/workflows/upl
 const steps = workflow.jobs.upload.steps as Step[]
 const tempDirs: string[] = []
 
+/**
+ * 按名称取得工作流中的可执行步骤，供测试直接运行其 shell 脚本。
+ * @throws 当步骤不存在或未配置 run 脚本时抛错，避免测试静默跳过。
+ */
 function step(name: string): Step {
   const found = steps.find(item => item.name === name)
   if (!found?.run)

@@ -15,7 +15,7 @@
 
 保留四项 95% 阈值；没有降低阈值或增加排除项。覆盖率 job 未使用 continue-on-error，未达标会阻断 CI；报告以 `coverage-node24` artifact 保存 7 天，即使测试失败也尝试上传。其它组合使用 `test:run`，避免在非 CI 环境进入 watch。
 
-本轮静态检查确认八组 build/test、四组消费验证、唯一 Linux Node 24 coverage 组合；全仓库 lint 与 `typecheck:all` 均通过。GitHub 托管 Runner 尚未运行，本地结果不代表远端矩阵通过。
+本轮静态检查确认八组 build/test、四组消费验证、唯一 Linux Node 24 coverage 组合；全仓库 lint 与 `typecheck:all` 均通过。初次记录时 GitHub 托管 Runner 尚未运行；提交后的远端结果见下方补充，本地与远端证据分别记录。
 
 ## 本地运行结果
 
@@ -47,8 +47,18 @@ node scripts/verify-capabilities.mjs --no-build --keep --summary /tmp/wotci-capa
 
 本地日志位于 `/tmp/wotci-coverage.log`、`/tmp/wotci-node24-coverage.log`、`/tmp/wotci-node26-tests.log`、`/tmp/wotci-node24-consumer.log`、`/tmp/wotci-node26-consumer.log`。这些是临时文件，本记录保留结论；远端运行完成后补 run URL 与 artifact。
 
+## 远端验证补充（2026-11-04）
+
+以下结果对应 PR #3 的提交 `66a5fd528f02046fb31e1509bdaf04a336047ae8`，不自动适用于后续提交。
+
+- [CI run 41838959523](https://github.com/wot-ui/ci/actions/runs/41838959523)：lint/typecheck 与八组构建测试全部 success。
+- [Linux Node 24 job](https://github.com/wot-ui/ci/actions/runs/41838959523/job/126605141290)：`Check coverage thresholds` 和 `Upload coverage report` 均 success，报告名称为 `coverage-node24`。本段仅核验门禁与上传结果，不以本地覆盖率数值替代远端数值。
+- [Verify Capabilities run 41838959528](https://github.com/wot-ui/ci/actions/runs/41838959528)：Node 20/22/24/26 四组消费者验证与 Composite action job 全部 success。
+
+这些工作流验证构建、测试、打包消费与 dry-run 接线，没有完成真实小程序上传或扫码。
+
 ## 后续证据
 
-- GitHub Linux / Windows / macOS 矩阵、独立覆盖率 job、报告 artifact：待运行。
+- 后续提交的 GitHub 矩阵与覆盖率门禁：以对应 commit 的运行结果为准。
 - 真正 SDK 上传 / 预览、平台后台核对、手机扫码：待按平台验收指南执行。
 - Node 最低版本、Action 默认值与正式支持承诺：待远端及真实 SDK 证据齐备后决定。

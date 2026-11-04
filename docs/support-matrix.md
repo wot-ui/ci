@@ -36,8 +36,8 @@
 | 组合 | 当前仓库约束 / 验证入口 | 当前验收状态 |
 | --- | --- | --- |
 | Node >=20 | `package.json` engines；ESM 发布 | 声明的兼容范围，不代表每个 Node 版本都验证通过 |
-| Linux Node 20 / 22 / 24 / 26 | CI build + test；Verify Capabilities pack / install / CLI；仅 Node 24 执行 95% 覆盖率门禁 | 工作流已配置；远端通过需链接实际 run |
-| Windows / macOS Node 20 / 24 | CI build + test；部分 bash 用例在 Windows 跳过 | 工作流已配置；真实 IDE 需另外实测 |
+| Linux Node 20 / 22 / 24 / 26 | CI build + test；Verify Capabilities pack / install / CLI；仅 Node 24 执行 95% 覆盖率门禁 | 提交 66a5fd5 远端通过，见[运行时记录](verification/2026-11-04-runtime-matrix.md) |
+| Windows / macOS Node 20 / 24 | CI build + test；部分 bash 用例在 Windows 跳过 | 提交 66a5fd5 远端通过，见[运行时记录](verification/2026-11-04-runtime-matrix.md)；真实 IDE 待实测 |
 | 本地 macOS Node 22 / 24 / 26 | 构建、测试及消费者验证分项记录 | 见[运行时记录](verification/2026-11-04-runtime-matrix.md)，不替代远端矩阵；engines 与 Action 默认值不变 |
 | CLI / ESM JS API / CommonJS 项目配置 | `scripts/verify-capabilities.mjs`、`test/config.test.ts`、`test/exports.test.ts` | 见本地或 CI 验收记录；库无同步 require 入口 |
 | GitHub Action | `test/github-action.test.ts`、Verify Capabilities 的 composite job | 离线接线与真实平台调用分别记录 |
