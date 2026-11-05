@@ -224,6 +224,8 @@ function normalizeConfig(config: WotciConfig, label: string): WotciConfig {
       const bump = config.versionStrategy.bump
       if (bump !== 'major' && bump !== 'minor' && bump !== 'patch')
         throw new ConfigError(`${label}中的 versionStrategy.bump 无效：${String(bump)}`)
+      if (config.versionStrategy.strict !== undefined && typeof config.versionStrategy.strict !== 'boolean')
+        throw new ConfigError(`${label}中的 versionStrategy.strict 必须是布尔值`)
     }
   }
 

@@ -7,6 +7,7 @@ import type {
   Platform,
   PlatformInput,
   PlatformPlan,
+  VersionResolution,
 } from './types'
 import { formatBudgetReport, isBudgetFailure } from './budget'
 import { loadConfig } from './config'
@@ -46,17 +47,19 @@ async function runBatch<TResult>(
   })
   const cwd = loaded.cwd
   const platforms = resolvePlatforms(request.platforms, loaded.config)
-  const config = action === 'upload'
-    ? applyVersion(loaded.config, await resolveVersion(loaded.config, {
-        allowNetwork: !request.dryRun,
-        cwd,
-        packageJson: loaded.packageJson,
-        platforms,
-      }))
-    : loaded.config
-
   if (!platforms.length)
     throw new ConfigError('没有可执行的平台，请配置 weixin / alipay / dingtalk 或指定 platforms。')
+
+  const resolve = (): Promise<VersionResolution> => resolveVersion(loaded.config, {
+    allowNetwork: !request.dryRun,
+    cwd,
+    packageJson: loaded.packageJson,
+    platforms,
+  })
+  const versionResolution = action === 'upload'
+    ? await (request.redirectStdoutToStderr ? redirectStdoutToStderr(resolve) : resolve())
+    : undefined
+  const config = versionResolution ? applyVersion(loaded.config, versionResolution) : loaded.config
 
   const startedAt = Date.now()
 
@@ -75,6 +78,7 @@ async function runBatch<TResult>(
     }
 
     return {
+      ...(versionResolution ? { versionResolution } : {}),
       dryRun: true,
       durationMs: Date.now() - startedAt,
       ok: results.every(item => item.ok),
@@ -132,6 +136,7 @@ async function runBatch<TResult>(
     : await run()
 
   return {
+    ...(versionResolution ? { versionResolution } : {}),
     dryRun: false,
     durationMs: Date.now() - startedAt,
     ok: results.every(item => item.ok),
