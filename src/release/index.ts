@@ -258,6 +258,7 @@ function attachSizeTrend(
   }
 }
 
+/** 为发布结果生成历史标识和时间，保留构建、平台结果及版本解析依据。 */
 function createHistoryRecord(result: ReleaseResult): ReleaseHistoryRecord {
   return {
     build: result.build,

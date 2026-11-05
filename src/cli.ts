@@ -85,6 +85,10 @@ export interface ParsedCliArgs {
 
 const CLI_COMMANDS = new Set<CliCommand>(['upload', 'release', 'preview', 'open', 'close', 'auto', 'doctor', 'init', 'build-npm', 'sourcemap', 'inspect', 'quality'])
 
+/**
+ * 解析 CLI 参数并分派命令，按文本或 JSON 模式输出执行结果及版本依据。
+ * @returns 成功返回 0，参数、执行或预算检查失败返回 1；捕获的异常写入错误日志。
+ */
 export async function runCli(argv: string[] = process.argv.slice(2), options: RunCliOptions = {}): Promise<number> {
   let logger = createCliLogger(options)
 

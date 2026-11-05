@@ -36,6 +36,11 @@ export async function previewMany(
   return runBatch<AnyPreviewResult>('preview', request)
 }
 
+/**
+ * 按选定平台执行上传或预览，逐项汇总结果；上传共享一次版本解析依据。
+ * dry-run 仅做本地计划校验，JSON 模式将版本查询和执行阶段的 SDK 日志转到 stderr。
+ * @throws 配置或版本解析失败时在平台执行前终止；平台执行异常记录在各项结果中。
+ */
 async function runBatch<TResult>(
   action: 'upload' | 'preview',
   request: BatchRequest,

@@ -57,6 +57,11 @@ export async function resolveVersion(
   return resolveAutoVersion(config, strategy, options)
 }
 
+/**
+ * 查询目标平台并递增最高有效版本；无有效线上版本时回退到 package / 配置版本。
+ * 返回逐平台状态和警告；任一查询未成功或目标为空时标记暂定，离线模式不查询。
+ * @throws {VersionError} 联网严格模式查询不完整，或无法取得有效基础版本时抛出。
+ */
 async function resolveAutoVersion(
   config: WotciConfig,
   strategy: Extract<VersionStrategy, { type: 'auto' }>,

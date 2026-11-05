@@ -572,7 +572,7 @@ export default defineConfig({
 | `source` / `version` | 保留原有策略名称与最终版本的语义；`source: 'auto'` 不表示查询一定成功 |
 | `baseSource` / `baseVersion` | `auto` / `package` 的实际基础来源（`platform`、`package`、`config`；无版本时为 `none`）与递增前版本 |
 | `queries` | `auto` 的目标平台、查询状态及成功取得的版本；状态为 `success`、`failed`、`unsupported`、`empty`、`invalid`、`skipped` |
-| `tentative` / `warnings` | 是否缺少全部目标的有效线上依据，以及查询/回退警告；不保存 SDK 原始异常或凭据 |
+| `tentative` / `warnings` | 是否有任一目标未取得有效线上版本（含离线 dry-run 与部分成功；未选择查询目标时也为暂定），以及查询/回退警告；不保存 SDK 原始异常或凭据 |
 
 自动递增不提供跨进程锁，也不保证版本全局唯一。严格模式只能保证本次查询完整，不能消除并发发布竞争。
 
