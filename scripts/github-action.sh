@@ -13,6 +13,12 @@ trap 'exit 143' TERM
 export INPUT_PLATFORM="${INPUT_PLATFORM:-${WOTCI_PLATFORM:-}}"
 generated_config="$(node "$script_directory/github-action-config.mjs" "$action_temp")"
 
+# Fail before any upload if the requested evidence file cannot be created.
+if [ -n "${INPUT_JSON_OUTPUT:-}" ]; then
+  mkdir -p -- "$(dirname -- "$INPUT_JSON_OUTPUT")"
+  : > "$INPUT_JSON_OUTPUT"
+fi
+
 if [ "${INPUT_INSTALL_DEPENDENCIES:-false}" = "true" ]; then
   if [ -f pnpm-lock.yaml ]; then
     if ! command -v pnpm >/dev/null 2>&1; then
@@ -43,9 +49,9 @@ elif [ -n "$generated_config" ]; then
   args+=("-c" "$generated_config")
 fi
 
-case "${INPUT_JSON:-false}" in
-  true|1) args+=("--json") ;;
-esac
+if [ -n "${INPUT_JSON_OUTPUT:-}" ] || [ "${INPUT_JSON:-false}" = "true" ] || [ "${INPUT_JSON:-false}" = "1" ]; then
+  args+=("--json")
+fi
 
 case "${INPUT_DRY_RUN:-false}" in
   true|1) args+=("--dry-run") ;;
@@ -113,4 +119,10 @@ else
 fi
 
 echo "[wotci-action] ${cli[*]} ${args[*]}"
-"${cli[@]}" "${args[@]}"
+if [ -n "${INPUT_JSON_OUTPUT:-}" ]; then
+  # Keep wrapper/SDK diagnostics out of the JSON file. pipefail preserves the
+  # CLI's non-zero exit even when tee writes its structured failure result.
+  "${cli[@]}" "${args[@]}" | tee -- "$INPUT_JSON_OUTPUT"
+else
+  "${cli[@]}" "${args[@]}"
+fi
