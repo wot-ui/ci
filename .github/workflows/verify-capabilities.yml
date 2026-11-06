@@ -217,6 +217,12 @@ jobs:
           upload-version: 0.0.2
           dry-run: 'true'
           summary: ${{ runner.temp }}/direct-weixin.md
+        env:
+          # Conflicting fallbacks must not override explicit input values.
+          WOTCI_PLATFORM: dingtalk
+          WOTCI_VERSION: 0.0.1
+          WEIXIN_PROJECT_PATH: missing-env-output
+          WEIXIN_PRIVATE_KEY_PATH: missing-env-key
 
       - name: Config-free Alipay upload via env
         uses: ./
@@ -250,7 +256,36 @@ jobs:
           for platform in weixin alipay dingtalk; do
             grep -q "| $platform | ✅ |" "$RUNNER_TEMP/direct-$platform.md"
           done
+          grep -q '版本：0.0.2' "$RUNNER_TEMP/direct-weixin.md"
           if compgen -G "$RUNNER_TEMP/wotci-action.*" > /dev/null; then
             echo '::error::Action 临时凭据目录没有清理'
+            exit 1
+          fi
+
+      - name: Config-free upload reports a missing artifact
+        id: direct-missing-artifact
+        continue-on-error: true
+        uses: ./
+        with:
+          platform: weixin
+          working-directory: ${{ runner.temp }}/action-fixture
+          project-path: does-not-exist
+          appid: wx0000000000000000
+          private-key: ${{ env.ACTION_TEST_PRIVATE_KEY }}
+          upload-version: 0.0.2
+          dry-run: 'true'
+          summary: ${{ runner.temp }}/direct-failure.md
+
+      - name: Assert failed upload status and cleanup
+        if: ${{ always() }}
+        env:
+          UPLOAD_OUTCOME: ${{ steps.direct-missing-artifact.outcome }}
+        run: |
+          set -euo pipefail
+          test "$UPLOAD_OUTCOME" = failure
+          grep -q '| weixin | ❌ |' "$RUNNER_TEMP/direct-failure.md"
+          test -s "$RUNNER_TEMP/action-fixture/keys/weixin.private.key"
+          if compgen -G "$RUNNER_TEMP/wotci-action.*" > /dev/null; then
+            echo '::error::Failed Action left temporary credentials behind'
             exit 1
           fi
