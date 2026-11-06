@@ -54,7 +54,7 @@ process.exit(Number(process.env.CLI_EXIT_CODE || 0))
 it('exposes the JSON output path through the composite environment', async () => {
   const action = parse(await readFile(path.join(repoRoot, 'action.yml'), 'utf8'))
   expect(action.inputs['json-output'].default).toBe('')
-  const execution = action.runs.steps.find((step: { run?: string }) => step.run)
+  const execution = action.runs.steps.find((step: { run?: string }) => step.run?.includes('github-action.sh'))
   // eslint-disable-next-line no-template-curly-in-string -- GitHub expression, not JavaScript interpolation.
   expect(execution.env.INPUT_JSON_OUTPUT).toBe('${{ inputs.json-output }}')
 })

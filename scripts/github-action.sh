@@ -116,15 +116,38 @@ resolve_package_version() {
 
 if [ -x "./node_modules/.bin/wotci" ]; then
   cli=("./node_modules/.bin/wotci")
+  echo '[wotci-action] 使用项目本地 CLI，跳过临时安装' >&2
 else
-  cli=("npx" "--yes" "@wot-ui/ci@$(resolve_package_version)")
+  package="@wot-ui/ci@$(resolve_package_version)"
+  registry="${INPUT_REGISTRY:-${npm_config_registry:-${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}}}"
+  npm_cache="${WOTCI_NPM_CACHE:-$action_temp/npm-cache}"
+  npx_options=(--yes --registry "$registry" --cache "$npm_cache")
+  prepare_started=$SECONDS
+  echo "[wotci-action] 准备 CLI：$package" >&2
+  # Warm the same npx package cache without loading the CLI or calling an SDK.
+  # Explicit registry avoids inheriting a slow project-level registry mirror.
+  prepare_status=0
+  npx "${npx_options[@]}" --package "$package" -- node -e '' >&2 || prepare_status=$?
+  echo "[wotci-action] CLI 准备耗时：$((SECONDS - prepare_started))s（退出码 ${prepare_status}）" >&2
+  if [ "$prepare_status" -ne 0 ]; then
+    exit "$prepare_status"
+  fi
+  if [ -n "${GITHUB_OUTPUT:-}" ] && [ -n "${WOTCI_NPM_CACHE:-}" ]; then
+    printf 'cli-cache-ready=true\n' >> "$GITHUB_OUTPUT"
+  fi
+  cli=("npx" "${npx_options[@]}" "$package")
 fi
 
-echo "[wotci-action] ${cli[*]} ${args[*]}"
+# Do not log registry URLs, which may carry authentication information.
+echo "[wotci-action] 运行 CLI：${args[*]}" >&2
+run_started=$SECONDS
+run_status=0
 if [ -n "${INPUT_JSON_OUTPUT:-}" ]; then
   # Keep wrapper/SDK diagnostics out of the JSON file. pipefail preserves the
   # CLI's non-zero exit even when tee writes its structured failure result.
-  "${cli[@]}" "${args[@]}" | tee -- "$INPUT_JSON_OUTPUT"
+  "${cli[@]}" "${args[@]}" | tee -- "$INPUT_JSON_OUTPUT" || run_status=$?
 else
-  "${cli[@]}" "${args[@]}"
+  "${cli[@]}" "${args[@]}" || run_status=$?
 fi
+echo "[wotci-action] CLI 执行耗时：$((SECONDS - run_started))s（退出码 ${run_status}）" >&2
+exit "$run_status"

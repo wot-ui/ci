@@ -118,6 +118,10 @@ inputs:
       falling back to latest for moving refs such as v0 or main
     required: false
     default: ''
+  registry:
+    description: CLI installation registry. Empty uses npm_config_registry / NPM_CONFIG_REGISTRY, then https://registry.npmjs.org/. Does not change project dependency installation
+    required: false
+    default: ''
   install-dependencies:
     description: Run package manager install before wotci
     required: false
@@ -135,7 +139,29 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
+    - name: Prepare CLI cache
+      id: wotci-cache-config
+      shell: bash
+      env:
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_PACKAGE_VERSION: ${{ inputs.package-version }}
+        INPUT_REGISTRY: ${{ inputs.registry }}
+        WOTCI_ACTION_REF: ${{ github.action_ref }}
+      run: node "${{ github.action_path }}/scripts/github-action-cache.mjs"
+
+    - name: Restore CLI cache
+      id: wotci-cache
+      if: ${{ steps.wotci-cache-config.outputs.enabled == 'true' }}
+      uses: actions/cache/restore@v4
+      continue-on-error: true
+      with:
+        path: |
+          ${{ steps.wotci-cache-config.outputs.path }}/_cacache
+          ${{ steps.wotci-cache-config.outputs.path }}/_npx
+        key: ${{ steps.wotci-cache-config.outputs.key }}
+
     - name: Run wot-ui-ci
+      id: wotci-run
       shell: bash
       env:
         WOTCI_ACTION_REF: ${{ github.action_ref }}
@@ -166,5 +192,17 @@ runs:
         INPUT_HISTORY: ${{ inputs.history }}
         INPUT_ARGS: ${{ inputs.args }}
         INPUT_PACKAGE_VERSION: ${{ inputs.package-version }}
+        INPUT_REGISTRY: ${{ inputs.registry }}
+        WOTCI_NPM_CACHE: ${{ steps.wotci-cache-config.outputs.path }}
         INPUT_INSTALL_DEPENDENCIES: ${{ inputs.install-dependencies }}
       run: bash "${{ github.action_path }}/scripts/github-action.sh"
+
+    - name: Save CLI cache
+      if: ${{ always() && !cancelled() && steps.wotci-run.outputs.cli-cache-ready == 'true' && steps.wotci-cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v4
+      continue-on-error: true
+      with:
+        path: |
+          ${{ steps.wotci-cache-config.outputs.path }}/_cacache
+          ${{ steps.wotci-cache-config.outputs.path }}/_npx
+        key: ${{ steps.wotci-cache-config.outputs.key }}
