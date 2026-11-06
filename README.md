@@ -63,7 +63,7 @@ wotci.config.ts + 构建产物
 
 ## 特性
 
-- **多平台**：微信、支付宝、钉钉小程序上传；微信链路基于 `miniprogram-ci` 2.x
+- **多平台**：微信、支付宝、钉钉小程序上传；微信链路基于 `miniprogram-ci` 2.x（当前固定为 2.1.48 beta，以修复编译设置不生效造成的包体积回归）
 - **两种入口**：CLI `wotci` 与 ESM JS API，另有 [GitHub Action](#github-action) 和 [Vite 插件](#vite-与-uni-app-插件)
 - **配置灵活**：支持 `wotci.config.ts/js/mjs/cjs/mts/cts`，可用工厂函数读取 `process.env`；兼容 `.minicirc`、`package.json` 字段与 `dd` 别名
 - **上传前可控**：`doctor` 体检、`--dry-run` 本地校验、`--build-npm`、包体积预算

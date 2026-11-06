@@ -23,7 +23,8 @@ catalog:
   dingtalk-miniapp-opensdk: ^1.0.8
   json5: ^2.2.3
   minidev: ^1.8.4
-  miniprogram-ci: ^2.1.31
+  # 2.1.39 fixes compiler settings ignored by CI; pin the verified beta until a stable release includes the fix.
+  miniprogram-ci: 2.1.48
 
 catalogs:
   cli:
