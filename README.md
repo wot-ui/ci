@@ -700,6 +700,8 @@ permissions:
 - PR 编号：`GITHUB_EVENT_PATH` 中的 `pull_request.number`，或 `GITHUB_REF=refs/pull/<n>/merge`
 - 可选 `GITHUB_API_URL`（GitHub Enterprise）
 
+`GITHUB_TOKEN` / `GH_TOKEN` 需由 workflow 显式注入步骤环境，完整 Action 步骤见 [复用配置文件](#复用配置文件)。没有 token 或 PR 上下文时，默认的自动评论会跳过。
+
 评论内容包含平台结果、版本、包体积、耗时、构建命令、commit 和运行链接；同一 PR 使用 marker 更新已有评论，不会重复刷屏。
 
 ## 诊断与工具
@@ -858,11 +860,11 @@ wotci ide preview -p weixin --qr-output dist/ide-preview.png
 
 仓库根目录提供 composite action。上传可以直接通过 `with` / `env` 配置，无需 `wotci.config.ts`，也不需要为 Action 单独安装 `@wot-ui/ci`。构建仍由项目自己的命令完成。
 
-> 无配置文件模式是本分支新增能力，需使用包含此改动的 Action ref；发布并更新 `v0` 后，下方示例才可直接使用 `@v0`。
+> 下方示例要求所选 Action ref 已包含无配置文件模式及所用 inputs（如 `json-output`）。`v0` 是维护者更新的主版本标签，不会自动包含所有 `v0.x` 标签；新能力需发布并更新该标签后才能通过 `@v0` 使用。
 
 #### 无配置文件上传
 
-下面以微信为例，将私钥的完整多行文本存入 `WEIXIN_PRIVATE_KEY` Secret，Action 会临时写入权限为 `600` 的文件，执行结束后清理：
+下面以微信为例，将私钥的完整多行文本存入 `WEIXIN_PRIVATE_KEY` Secret，Action 会临时写入权限为 `600` 的文件，执行结束后清理。示例假定项目已通过 `packageManager` 指定 pnpm 版本，且 `pnpm build` 会生成 `dist/build/mp-weixin`；请替换为项目实际构建命令和产物路径：
 
 ```yaml
 name: Upload
@@ -912,6 +914,27 @@ jobs:
 
 无配置文件模式支持微信、支付宝、钉钉的单平台上传，以及平台原有的 `preview` / `doctor` 能力（钉钉不支持预览）。支付宝额外需要 `tool-id` / `ALIPAY_TOOL_ID`，钉钉使用 `token` / `DINGTALK_TOKEN`，不传私钥。多平台使用多个步骤、GitHub Actions 矩阵或配置文件；此模式不会自动构建产物。
 
+支付宝与钉钉可分别使用以下步骤，放在各自产物构建完成之后；`upload-version` 省略时同样读取当前执行目录的 `package.json`：
+
+```yaml
+# 支付宝
+- uses: wot-ui/ci@v0
+  with:
+    platform: alipay
+    project-path: dist/build/mp-alipay
+    appid: ${{ secrets.ALIPAY_APPID }}
+    private-key: ${{ secrets.ALIPAY_PRIVATE_KEY }}
+    tool-id: ${{ secrets.ALIPAY_TOOL_ID }}
+
+# 钉钉（这里使用 uni-app 的支付宝构建产物，请按实际项目调整）
+- uses: wot-ui/ci@v0
+  with:
+    platform: dingtalk
+    project-path: dist/build/mp-alipay
+    appid: ${{ secrets.DINGTALK_APPID }}
+    token: ${{ secrets.DINGTALK_TOKEN }}
+```
+
 | `with` 输入 | `env` 回退 | 说明 |
 | --- | --- | --- |
 | `platform` | `WOTCI_PLATFORM` | 单个平台：`weixin` / `alipay` / `dingtalk` |
@@ -937,7 +960,7 @@ jobs:
 
 #### 复用配置文件
 
-已有项目可以继续显式选择配置文件，或省略 `config` 让 CLI 自动发现：
+已有项目可以继续显式选择配置文件，或省略 `config` 让 CLI 自动发现。下例要求配置文件读取对应环境变量，且私钥已提前写入 `keys/weixin.private.key`：
 
 ```yaml
 - uses: wot-ui/ci@v0
@@ -950,41 +973,117 @@ jobs:
     WEIXIN_PRIVATE_KEY_PATH: keys/weixin.private.key
 ```
 
-使用 `release` 编排多平台发布时，仍在项目配置文件中维护发布规则：
+使用 `release` 编排多平台发布时，仍在项目配置文件中维护发布规则。以下是已有 job 的步骤片段：依赖、配置及平台凭据需提前准备，构建可由配置中的 `release.buildCommand` 执行。需要 PR 评论时，在 workflow 或 job 上配置 `pull-requests: write`、`issues: write` 和 `contents: read`，同时注入 token；`auto` 只在检测到 token、仓库和 PR 编号时发表评论，手动运行且没有 PR 上下文时跳过。
 
 ```yaml
 - uses: wot-ui/ci@v0
   with:
     command: release
     platform: weixin,alipay
-    summary: ${{ env.GITHUB_STEP_SUMMARY }}
+    config: wotci.config.ts
+    summary: ${{ runner.temp }}/release-summary.md
     pr-comment: auto
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # 此处继续提供项目配置读取的平台凭据环境变量
+
+- name: Publish release summary
+  if: always()
+  shell: bash
+  run: |
+    if [ -f "$RUNNER_TEMP/release-summary.md" ]; then
+      cat "$RUNNER_TEMP/release-summary.md" >> "$GITHUB_STEP_SUMMARY"
+    fi
 ```
 
-主要 inputs：
+#### 完整 inputs 参考
 
-| input | 说明 |
-| --- | --- |
-| `command` | `upload`（默认）、`preview`、`release`、`doctor`、`version latest` 等 |
-| `platform` | 逗号分隔平台，如 `weixin,alipay` |
-| `config` | 可选配置文件路径；不传时支持无配置文件模式或自动发现 |
-| `working-directory` | 执行目录，默认 `.` |
-| `summary` | `$GITHUB_STEP_SUMMARY` 或指定 Markdown 文件 |
-| `json-output` | 将 CLI 的 JSON stdout 同时保存到文件，路径相对 `working-directory`；自动启用 `json`，失败退出码仍保留 |
-| `json` / `dry-run` / `network` / `yes` | 透传对应 CLI 参数 |
-| `version` | experience / version delete 的目标版本 |
-| `pr-comment` | `auto` / `true` / `false` |
-| `history` | `auto` / `true` / `false` |
-| `args` | 额外 CLI 参数 |
-| `install-dependencies` | 是否在 action 内执行安装 |
-| `package-version` | 本地未安装时通过 npx 使用的 `@wot-ui/ci` 版本；默认跟随 action 的 tag（`@v0.4.1` → `0.4.1`），浮动 tag 才回落到 `latest` |
+下表列出 `action.yml` 的全部 26 个 inputs。默认值是 Action 层的默认值，`空` 表示未显式传入；环境变量、配置文件和 CLI 仍可能提供回退值。元数据中的 inputs 均非必填，但无配置模式仍须满足所选平台的凭据与路径要求。布尔值建议写成字符串 `'true'` / `'false'`。
 
-说明：
+| input | 默认值 | 用途与生效范围 |
+| --- | --- | --- |
+| `command` | `upload` | CLI 命令，如 `upload`、`preview`、`doctor`、`release`、`build-npm`、`sourcemap`、`inspect`、`quality`、`version latest`、`version list`、`version delete`、`experience set`、`experience cancel`；完整列表见 [CLI 命令速查](#cli-命令速查)。无配置模式仅支持 `upload` / `preview` / `doctor` |
+| `platform` | 空 | 回退到 `WOTCI_PLATFORM`；无配置模式必须选单个平台，配置文件模式可用逗号分隔多个平台（是否支持取决于命令） |
+| `config` | 空 | 配置文件路径，相对 `working-directory`；省略时按前述规则选择无配置模式或自动发现 |
+| `project-path` | 空 | 无配置模式的构建产物目录，相对 `working-directory`；与对应平台环境变量至少提供一个 |
+| `appid` | 空 | 无配置模式的平台应用 ID；与对应平台环境变量至少提供一个 |
+| `private-key` | 空 | 无配置模式的微信 / 支付宝私钥原文，建议来自 Secret；与 `private-key-path` 互斥 |
+| `private-key-path` | 空 | 无配置模式的微信 / 支付宝私钥文件，相对 `working-directory`；必须提前存在 |
+| `upload-version` | 空 | 无配置模式上传版本：input → `WOTCI_VERSION` → 当前执行目录的 `package.json.version`；上传时必须能取得版本 |
+| `upload-desc` | 空 | 无配置模式上传描述：input → `WOTCI_DESC` → 当前执行目录的 `package.json.description` |
+| `robot` | 空 | 无配置模式的微信机器人编号：input → `WEIXIN_ROBOT` → `1`，有效范围 1–30 |
+| `tool-id` | 空 | 无配置模式的支付宝工具 ID；与 `ALIPAY_TOOL_ID` 至少提供一个 |
+| `token` | 空 | 无配置模式的钉钉 API token；与 `DINGTALK_TOKEN` 至少提供一个。不是 GitHub 评论用的 token |
+| `working-directory` | `.` | CLI 执行目录，同时决定配置、产物、私钥、结果文件的相对路径及本地 CLI / package.json 的查找位置 |
+| `summary` | 空 | Markdown 结果文件；仅传递给 `upload`、`preview`、`release`、`build-npm`、`sourcemap`、`inspect`、`quality`，其他命令忽略此 input；写入文件后可由后续步骤发布到 Job Summary |
+| `json` | `false` | 传递 `--json`，在 CLI stdout 输出 JSON；不自动创建 artifact，也不代表 Action 整个步骤的日志只有 JSON |
+| `json-output` | 空 | 保存 CLI JSON stdout，并自动启用 `json`；相对 `working-directory`，自动创建父目录并覆盖已有文件。CLI 的失败退出码继续传递 |
+| `dry-run` | `false` | 传递 `--dry-run`，对支持该选项的命令生成计划 / 校验而不执行真实操作；不能替代独立的 `doctor --network`，也不能证明平台上传成功 |
+| `network` | `false` | 传递 `--network`，用于 `doctor` 的网络检查；失败默认使步骤失败，如需只做诊断可在调用步骤设置 `continue-on-error: true` |
+| `yes` | `false` | 传递 `--yes`，用于确认 `version delete` 等要求确认的操作 |
+| `version` | 空 | `experience set`、`experience cancel`、`version delete` 的目标版本；不用于设置上传版本 |
+| `pr-comment` | `auto` | 仅用于 `release`。`auto` 沿用配置（未配置时自动检测 PR 上下文）；`true` 显式请求评论，缺少上下文会记录评论错误；`false` 禁用评论 |
+| `history` | `auto` | 仅用于 `release`。`false` 禁用历史；`auto` 和 `true` 均沿用配置（未配置时开启），`true` 不会覆盖配置中的 `history: false`。默认写入 `.wotci/history.json`，跨运行保留需自行归档 / 恢复 |
+| `args` | 空 | 追加 CLI 参数，例如 `--concurrency 2`；按空白拆分，不支持 shell 引号分组、变量展开或命令替换。无配置模式禁止通过它覆盖 `--config` / `-c`、`--cwd`、`--platform` / `-p`、`--all` |
+| `package-version` | 空 | 仅在没有本地 CLI、使用 npx 时生效；显式值优先，否则精确 Action 版本 ref 映射到同版本 npm 包，其他 ref 回退到 `latest` |
+| `install-dependencies` | `false` | 在 `working-directory` 安装依赖后再运行 CLI，不负责构建；包管理器选择规则见下文 |
+| `node-version` | `20` | 传给 Action 内部的 `actions/setup-node`。即使此前 job 已安装其他 Node 版本，Action 仍执行此设置；需要保持一致时显式指定 |
 
-- action 优先使用项目内的 `node_modules/.bin/wotci`，否则回退到 `npx @wot-ui/ci@<version>`；`<version>` 默认取自 action 的 tag（`uses: wot-ui/ci@v0.4.1` → `0.4.1`），只有浮动 tag（`@v0`、`@main`）才用 `latest`
-- 推荐把 `@wot-ui/ci` 加进 devDependencies，这样配置文件里的 `import { defineConfig } from '@wot-ui/ci'` 才能正常解析
-- 私钥需要在 workflow 中提前落盘；建议写入 `$RUNNER_TEMP` 并执行 `chmod 600`，[upload-playground.yml](.github/workflows/upload-playground.yml) 有完整示例
-- `release` 的 PR 评论需要 `pull-requests: write` 和 `issues: write`
+执行与版本规则：
+
+- Action 优先使用 `working-directory/node_modules/.bin/wotci`；存在时 `package-version` 不会替换它。不存在时调用 `npx --yes @wot-ui/ci@<version>`。
+- npx 的版本优先取 `package-version`，其次取精确 Action ref（如 `@v0.4.1` → `0.4.1`）；`@v0`、`@main`、分支和提交 SHA 等不能映射到 npm 版本的 ref 均回退到 `latest`。固定 Action SHA 时，如需同时固定 CLI 版本，应安装并锁定本地依赖或设置 `package-version`。
+- 配置文件中使用 `import { defineConfig } from '@wot-ui/ci'` 时，需在项目中安装该依赖以便解析；无配置模式不要求安装。
+- `install-dependencies: 'true'` 按顺序检查当前目录：`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`（缺少 pnpm 时尝试 `corepack enable`）；存在 `yarn.lock` 且 yarn 可用 → `yarn install --frozen-lockfile`；`package-lock.json` → `npm ci`；存在 `bun.lockb` 且 bun 可用 → `bun install --frozen-lockfile`；其余情况 → `npm install`。仅有 `bun.lock` 不会匹配 bun 分支。需要特定包管理器或 monorepo 根目录安装时，建议在前面的独立步骤完成安装。
+- 使用私钥文件路径时，由调用方提前落盘并负责清理；建议写入 `$RUNNER_TEMP`、设置 `chmod 600` 并在 `if: always()` 的步骤删除。传 `private-key` 原文时则由 Action 创建和清理临时文件。
+
+#### 预演、预览与结果归档
+
+上传前可以用相同的 `with` / `env` 执行 `command: doctor` 检查配置，再用 `command: upload` 加 `dry-run: 'true'` 验证上传计划；真实上传时移除 `dry-run` 或设为 `'false'`。这些步骤仍需要准备相应配置、凭据和构建产物。
+
+以下片段放在微信产物构建完成之后，执行真实预览，并在失败时也尽量收集已有结果。支付宝将平台、路径及凭据替换为前述支付宝输入即可；钉钉不支持 `preview`。示例使用 `ubuntu-latest`，二维码路径通过 `args` 传递，应避免包含空白。
+
+```yaml
+- name: Preview WeChat
+  uses: wot-ui/ci@v0
+  with:
+    command: preview
+    platform: weixin
+    project-path: dist/build/mp-weixin
+    private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    json-output: ${{ runner.temp }}/wotci/preview.json
+    summary: ${{ runner.temp }}/wotci/preview-summary.md
+    args: --qr-output ${{ runner.temp }}/wotci/preview.png
+  env:
+    WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
+
+- name: Publish preview summary
+  if: always()
+  shell: bash
+  run: |
+    if [ -f "$RUNNER_TEMP/wotci/preview-summary.md" ]; then
+      cat "$RUNNER_TEMP/wotci/preview-summary.md" >> "$GITHUB_STEP_SUMMARY"
+    fi
+
+- name: Archive preview results
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: wotci-preview-${{ github.run_id }}
+    path: |
+      ${{ runner.temp }}/wotci/preview.json
+      ${{ runner.temp }}/wotci/preview-summary.md
+      ${{ runner.temp }}/wotci/preview.png
+    if-no-files-found: warn
+```
+
+`summary` 接收实际文件路径，不能写成 `${{ env.GITHUB_STEP_SUMMARY }}`：GitHub 默认环境变量不在 `env` context 中；直接传字面量 `$GITHUB_STEP_SUMMARY` 也不会由 Action 二次展开。上例先写明确路径，再在 `run` 的 shell 中读取 `$GITHUB_STEP_SUMMARY`，参见 [GitHub 变量说明](https://docs.github.com/en/actions/reference/workflows-and-actions/variables)。
+
+Action 当前不声明结构化 `outputs`，不能使用 `steps.<id>.outputs.json` 读取结果。请使用 `json-output` 文件；失败发生在 CLI 生成 JSON 之前时，该文件可能为空或不存在，应先检查内容再解析。文件存在不代表成功，需同时检查步骤状态和 JSON 的 `ok`；Action 保留 CLI 非零退出码。`json-output` 不包含包装脚本和 SDK 的诊断日志，也不会自动上传 artifact。
+
+多平台可分别调用上述步骤，或在 job 上使用 `strategy.matrix.include` 为每个平台设置构建命令、产物路径和 Secret 名称，再通过 `${{ matrix.platform }}`、`${{ secrets[matrix.appid_secret] }}` 等传入。每个无配置模式调用只选一个平台；矩阵归档时在 artifact 名称中加入 `${{ matrix.platform }}` 避免重名。需要在一次发布中统一编排多个平台时使用配置文件模式的 `release`。
+
+仓库自身的完整工作流见 [upload-playground.yml](.github/workflows/upload-playground.yml)：它通过 `uses: ./` 验证当前提交的 Action，并显式绑定当前构建的 CLI；外部项目使用 `wot-ui/ci@<ref>`。
 
 维护者发布流程（含 Marketplace 上架的人工那一步）见 [docs/releasing.md](docs/releasing.md)。
 
