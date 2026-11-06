@@ -104,6 +104,136 @@ function weixinInputs() {
 }
 
 describe.skipIf(process.platform === 'win32')('config-free composite action', () => {
+  it('supports all WeChat optional fields and keeps false values and nested settings', async () => {
+    const fixture = await createFixture()
+    const options = {
+      type: 'miniProgramPlugin',
+      ignores: ['node_modules/**/*', 'test fixtures/**'],
+      robot: 6,
+      setting: { useProjectConfig: false, minifyJS: false, es6: true, futureSDKOption: { enabled: false } },
+      preview: {
+        qrcodeFormat: 'image',
+        qrcodeOutputDest: 'qr output/image.png',
+        pagePath: 'pages/index',
+        searchQuery: 'name=hello world',
+        scene: 1011,
+        desc: 'preview',
+        robot: 7,
+        setting: { minifyJS: true },
+        threads: 2,
+        bigPackageSizeSupport: false,
+      },
+      ide: { cliPath: '/path with spaces/cli', port: 9420, lang: 'zh' },
+    }
+    const result = fixture.run({ ...weixinInputs(), INPUT_PLATFORM_OPTIONS: JSON.stringify(options) })
+    expect(result.status, result.stderr).toBe(0)
+    expect((await fixture.captured()).config.weixin).toMatchObject(options)
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it('uses whole-object input/env precedence and dedicated settings over platform options', async () => {
+    const fixture = await createFixture()
+    const result = fixture.run({
+      ...weixinInputs(),
+      INPUT_PLATFORM_OPTIONS: '{"robot":6,"setting":{"es6":true},"preview":{"pagePath":"old"}}',
+      WEIXIN_OPTIONS: '{"type":"miniGame"}',
+      INPUT_SETTING: '{"useProjectConfig":false,"minifyJS":false}',
+      WEIXIN_SETTING: '{"minifyJS":true,"es7":true}',
+      INPUT_PREVIEW: '{"pagePath":"new","setting":{"minifyWXML":true}}',
+      WEIXIN_PREVIEW: '{"pagePath":"ignored"}',
+      INPUT_ROBOT: '4',
+    })
+    expect(result.status, result.stderr).toBe(0)
+    const { config } = await fixture.captured()
+    expect(config.weixin.setting).toEqual({ useProjectConfig: false, minifyJS: false })
+    expect(config.weixin.preview).toEqual({ pagePath: 'new', setting: { minifyWXML: true } })
+    expect(config.weixin.robot).toBe(4)
+    expect(config.weixin.type).toBeUndefined()
+  })
+
+  it.each(['weixin', 'alipay', 'dingtalk'])('loads %s extended options through env only', async (platform) => {
+    const fixture = await createFixture()
+    const prefix = platform.toUpperCase()
+    const options = platform === 'weixin'
+      ? { type: 'miniGame', ignores: ['test/**'] }
+      : platform === 'alipay'
+        ? { clientType: 'amap', autoincrement: false, ide: { appPath: '/Applications/IDE' } }
+        : { projectType: 'dingtalk-biz', autoincrement: true }
+    const preview = platform === 'weixin'
+      ? { pagePath: 'pages/index', scene: 1011 }
+      : { page: 'pages/home', pageQuery: 'x=1', query: 'y=2', scene: 'test', autoPush: false, ignoreHttpDomainCheck: true, ignoreWebViewDomainCheck: false }
+    const result = fixture.run({
+      WOTCI_PLATFORM: platform,
+      [`${prefix}_APPID`]: 'env-app',
+      [`${prefix}_PROJECT_PATH`]: 'build output',
+      [`${prefix}_OPTIONS`]: JSON.stringify(options),
+      ...(platform === 'dingtalk' ? { DINGTALK_TOKEN: 'test-token' } : { [`${prefix}_PRIVATE_KEY`]: privateKey, [`${prefix}_PREVIEW`]: JSON.stringify(preview) }),
+      ...(platform === 'alipay' ? { ALIPAY_TOOL_ID: 'test-tool' } : {}),
+      ...(platform === 'weixin' ? { WEIXIN_SETTING: '{"minifyJS":false}' } : {}),
+    })
+    expect(result.status, result.stderr).toBe(0)
+    const target = (await fixture.captured()).config[platform]
+    expect(target).toMatchObject(options)
+    if (platform !== 'dingtalk')
+      expect(target.preview).toEqual(preview)
+    if (platform === 'weixin')
+      expect(target.setting).toEqual({ useProjectConfig: true, minifyJS: false })
+  })
+
+  it.each<Record<string, string>>([
+    { INPUT_SETTING: '{"minifyJS":"false"}' },
+    { INPUT_SETTING: '{"minifyJS":null}' },
+    { INPUT_SETTING: '[true]' },
+    { INPUT_SETTING: '{secret-value-not-to-log' },
+    { INPUT_PREVIEW: '{"setting":{"minifyJS":1}}' },
+    { INPUT_PREVIEW: '{"robot":31}' },
+    { INPUT_PREVIEW: '{"threads":-1}' },
+    { INPUT_PREVIEW: '{"qrcodeFormat":"invalid"}' },
+    { INPUT_PREVIEW: '{"scene":"1011"}' },
+    { INPUT_PLATFORM_OPTIONS: '{"ignores":[1]}' },
+    { INPUT_PLATFORM_OPTIONS: '{"type":"invalid"}' },
+    { INPUT_PLATFORM_OPTIONS: '{"appid":"secret-value-not-to-log"}' },
+    { INPUT_PLATFORM_OPTIONS: '{"privateKey":"secret-value-not-to-log"}' },
+    { INPUT_PLATFORM_OPTIONS: '{"clientType":"alipay"}' },
+    { INPUT_SETTING: '{"__proto__":{"polluted":true}}' },
+    { INPUT_PREVIEW: '{"setting":{"constructor":{"prototype":{}}}}' },
+    { INPUT_SETTING: '{}', INPUT_CONFIG: 'wotci.config.ts' },
+    { INPUT_SETTING: '{}', INPUT_ARGS: '--config another.cjs' },
+  ])('rejects invalid extended options before CLI invocation: %j', async (extra) => {
+    const fixture = await createFixture()
+    const result = fixture.run({ ...weixinInputs(), ...extra })
+    expect(result.status).toBe(1)
+    expect(result.stdout + result.stderr).not.toContain('secret-value-not-to-log')
+    expect(result.stdout + result.stderr).not.toContain(privateKey)
+    await expect(readFile(fixture.outputFile)).rejects.toThrow()
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it.each([
+    ['alipay', { INPUT_SETTING: '{}' }],
+    ['alipay', { INPUT_PREVIEW: '{"pagePath":"pages/index"}' }],
+    ['alipay', { INPUT_PLATFORM_OPTIONS: '{"autoincrement":"false"}' }],
+    ['dingtalk', { INPUT_PREVIEW: '{}' }],
+    ['dingtalk', { INPUT_PLATFORM_OPTIONS: '{"clientType":"alipay"}' }],
+  ] as const)('rejects fields not supported by %s', async (platform, extra) => {
+    const fixture = await createFixture()
+    const result = fixture.run({ INPUT_PLATFORM: platform, INPUT_PROJECT_PATH: 'build output', INPUT_APPID: 'test', ...extra })
+    expect(result.status).toBe(1)
+    await expect(readFile(fixture.outputFile)).rejects.toThrow()
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it('preserves config discovery with extension env and opts in with a dedicated input', async () => {
+    const fixture = await createFixture()
+    await writeFile(path.join(fixture.cwd, 'wotci.config.cjs'), 'throw new Error("must not run")')
+    const env = { INPUT_PLATFORM: 'weixin', WEIXIN_APPID: 'env-app', WEIXIN_PROJECT_PATH: 'build output', WEIXIN_PRIVATE_KEY: privateKey, WEIXIN_SETTING: '{"minifyJS":true}' }
+    expect(fixture.run(env).status).toBe(0)
+    expect((await fixture.captured()).args).toEqual(['upload', '-p', 'weixin'])
+    const direct = fixture.run({ ...env, INPUT_SETTING: '{"minifyJS":false}' })
+    expect(direct.status, direct.stderr).toBe(0)
+    expect((await fixture.captured()).config.weixin.setting.minifyJS).toBe(false)
+  })
+
   it.each([0, 7])('with inputs safely materialize credentials and clean up after CLI exit %i', async (exitCode) => {
     const fixture = await createFixture()
     // eslint-disable-next-line no-template-curly-in-string -- Verify user data is never evaluated as code.

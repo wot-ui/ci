@@ -99,6 +99,59 @@ function createWriters() {
 }
 
 describe('runCli batch', () => {
+  it.each(['upload', 'preview'])('%s 单平台加 summary 时展示完整 cause，且失败不用成功日志', async (command) => {
+    const cwd = await createProject()
+    const { stdout, stderr, writers } = createWriters()
+    const cause = ['原因 1: SDK request failed', '原因 2: INVALID_SIGNATURE | invalid\nkey']
+    const mock = command === 'upload' ? mocks.uploadMany : mocks.previewMany
+    mock.mockResolvedValueOnce({
+      dryRun: false,
+      durationMs: 1,
+      ok: false,
+      results: [{ platform: 'alipay', ok: false, durationMs: 1, error: { code: 'UPLOAD_ERROR', message: '支付宝小程序失败', cause } }],
+    })
+    const code = await runCli([command, '-p', 'alipay', '--summary', 'summary.md'], { cwd, ...writers })
+    expect(code).toBe(1)
+    expect(stderr).toContain('[失败] [alipay] 支付宝小程序失败')
+    for (const line of cause)
+      expect(stderr).toContain(`[失败] [alipay] ${line}`)
+    expect(stdout.some(line => line.includes('[成功]'))).toBe(false)
+    expect(stderr).toContain(`[失败] ${command === 'upload' ? '上传' : '预览'}失败`)
+    const summary = await readFile(path.join(cwd, 'summary.md'), 'utf8')
+    expect(summary).toContain('原因 1: SDK request failed')
+    expect(summary).toContain('原因 2: INVALID_SIGNATURE \\| invalid key')
+  })
+
+  it('jSON 模式保留 cause 且 stdout 仍为单个 JSON 文档', async () => {
+    const cwd = await createProject()
+    const { stdout, writers } = createWriters()
+    const error = { code: 'UPLOAD_ERROR', message: '支付宝小程序上传失败', cause: ['原因 1: SDK rejected request'] }
+    mocks.uploadMany.mockResolvedValueOnce({
+      dryRun: false,
+      durationMs: 1,
+      ok: false,
+      results: [{ platform: 'alipay', ok: false, durationMs: 1, error }],
+    })
+    expect(await runCli(['upload', '-p', 'alipay', '--json'], { cwd, ...writers })).toBe(1)
+    expect(stdout).toHaveLength(1)
+    expect(JSON.parse(stdout[0]).results[0].error).toEqual(error)
+  })
+
+  it('dry-run summary 展示错误原因而不是通过', async () => {
+    const cwd = await createProject()
+    const { writers } = createWriters()
+    mocks.uploadMany.mockResolvedValueOnce({
+      dryRun: true,
+      durationMs: 1,
+      ok: false,
+      results: [{ platform: 'weixin', ok: false, durationMs: 1, error: { code: 'CONFIG_ERROR', message: '产物不可用', cause: ['原因 1: missing directory'] } }],
+    })
+    expect(await runCli(['upload', '-p', 'weixin', '--dry-run', '--summary', 'summary.md'], { cwd, ...writers })).toBe(1)
+    const summary = await readFile(path.join(cwd, 'summary.md'), 'utf8')
+    expect(summary).toContain('产物不可用 原因 1: missing directory')
+    expect(summary).not.toContain('通过')
+  })
+
   it('--all --json --summary --concurrency 输出 JSON 和 summary', async () => {
     const cwd = await createProject()
     const { stdout, stderr, writers } = createWriters()

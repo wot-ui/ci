@@ -102,7 +102,9 @@ resolve_package_version() {
     return
   fi
 
-  local ref="${GITHUB_ACTION_REF:-}"
+  # Composite actions receive github.action_ref through action.yml env; GitHub
+  # does not provide a GITHUB_ACTION_REF shell variable automatically.
+  local ref="${WOTCI_ACTION_REF:-}"
   ref="${ref#v}"
   if [[ "$ref" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
     printf '%s' "$ref"
