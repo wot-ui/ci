@@ -860,7 +860,7 @@ code,kbd {
 .docs-layout {
   display:grid;
   grid-template-columns:230px minmax(0,1fr) 195px;
-  gap:42px;
+  gap:36px;
   max-width:1376px;
   margin:auto;
   padding:0 32px
@@ -876,7 +876,7 @@ code,kbd {
 }
 .sidebar-home {
   display:block;
-  font-size:11px;
+  font-size:14px;
   color:var(--muted);
   margin-bottom:25px;
   padding-left:10px
@@ -885,7 +885,7 @@ code,kbd {
   margin-bottom:22px
 }
 .sidebar-group h2 {
-  font-size:10px;
+  font-size:13px;
   letter-spacing:.3px;
   margin:0 0 8px;
   padding-left:10px;
@@ -894,8 +894,8 @@ code,kbd {
 }
 .sidebar-group>a {
   display:block;
-  font-size:12px;
-  padding:7px 10px;
+  font-size:15px;
+  padding:8px 10px;
   border-radius:4px;
   margin:2px 0;
   color:var(--muted)
@@ -913,7 +913,7 @@ code,kbd {
   border-top:1px solid var(--line);
   padding:20px 10px 0;
   color:var(--muted);
-  font-size:10px
+  font-size:13px
 }
 .sidebar-note .status-dot {
   margin-right:5px
@@ -922,14 +922,14 @@ code,kbd {
   display:block;
   margin-top:3px;
   padding-left:11px;
-  font:9px var(--mono)
+  font:12px var(--mono)
 }
 .docs-main {
   min-width:0;
   padding:33px 0 60px
 }
 .doc-breadcrumb {
-  font-size:11px;
+  font-size:13px;
   color:var(--muted);
   margin-bottom:36px
 }
@@ -943,7 +943,7 @@ code,kbd {
   margin-bottom:32px
 }
 .doc-title .eyebrow {
-  font-size:9px
+  font-size:11px
 }
 .doc-title h1 {
   font-size:36px;
@@ -951,7 +951,7 @@ code,kbd {
   letter-spacing:-1px
 }
 .doc-title>p:last-child {
-  font-size:14px;
+  font-size:17px;
   color:var(--muted);
   max-width:600px;
   line-height:1.9
@@ -966,14 +966,14 @@ code,kbd {
   scrollbar-width:thin
 }
 .doc-toc h2 {
-  font-size:11px;
+  font-size:14px;
   letter-spacing:0;
   font-weight:550;
   margin-bottom:13px
 }
 .doc-toc a {
   display:block;
-  font-size:10px;
+  font-size:14px;
   line-height:1.8;
   padding:5px 0 5px 13px;
   color:var(--muted);
@@ -995,12 +995,12 @@ code,kbd {
   padding-left:0
 }
 .prose {
-  font-size:14px;
-  line-height:1.95;
+  font-size:17px;
+  line-height:1.85;
   overflow-wrap:anywhere
 }
 .prose h2 {
-  font-size:24px;
+  font-size:26px;
   line-height:1.5;
   margin:40px 0 18px;
   font-weight:550;
@@ -1011,7 +1011,7 @@ code,kbd {
   margin-top:0
 }
 .prose h3 {
-  font-size:18px;
+  font-size:21px;
   line-height:1.5;
   margin:30px 0 15px;
   font-weight:550;
@@ -1019,7 +1019,7 @@ code,kbd {
   letter-spacing:0
 }
 .prose h4 {
-  font-size:16px;
+  font-size:18px;
   position:relative
 }
 .heading-anchor {
@@ -1057,12 +1057,19 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
   font-weight:600
 }
 .prose code {
-  font:12px/1.7 var(--mono);
+  font:14px/1.7 var(--mono);
   color:var(--green);
   background:var(--soft);
   padding:2px 5px;
   border-radius:3px;
   overflow-wrap:anywhere
+}
+.prose .code-block pre {
+  font-size:14px;
+  line-height:1.8
+}
+.prose .code-label,.prose .code-label button {
+  font-size:12px
 }
 .prose blockquote {
   margin:24px 0;
@@ -1070,7 +1077,7 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
   border-left:3px solid var(--green);
   background:var(--green-soft);
   border-radius:0 5px 5px 0;
-  font-size:13px
+  font-size:16px
 }
 .prose blockquote .code-block {
   margin:10px 0 20px
@@ -1086,7 +1093,8 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
 .prose table {
   border-collapse:collapse;
   width:100%;
-  font-size:12px;
+  min-width:640px;
+  font-size:15px;
   line-height:1.85
 }
 .prose th {
@@ -1104,7 +1112,7 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
   border-bottom:0
 }
 .prose td code {
-  font-size:11px
+  font-size:14px
 }
 .prose hr {
   border:0;
@@ -1129,7 +1137,7 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
   justify-content:space-between;
   gap:16px;
   color:var(--muted);
-  font-size:10px;
+  font-size:13px;
   padding:30px 0;
   margin-top:35px;
   border-top:1px solid var(--line)
@@ -1147,7 +1155,7 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
   max-width:50%;
   overflow-wrap:anywhere;
   font-family:var(--mono);
-  font-size:9px
+  font-size:12px
 }
 .doc-pagination {
   display:grid;
@@ -1166,11 +1174,11 @@ h2:hover>.heading-anchor,h3:hover>.heading-anchor,.heading-anchor:focus-visible 
 .doc-pagination small {
   display:block;
   color:var(--muted);
-  font-size:10px;
+  font-size:13px;
   margin-bottom:7px
 }
 .doc-pagination strong {
-  font-size:13px;
+  font-size:16px;
   font-weight:500
 }
 .doc-mobile-toc {
@@ -1224,7 +1232,7 @@ dialog::backdrop {
   background:transparent;
   color:var(--ink);
   width:100%;
-  font-size:14px
+  font-size:16px
 }
 .search-close {
   font:11px var(--mono);
@@ -1234,7 +1242,7 @@ dialog::backdrop {
   color:var(--muted)
 }
 .search-status {
-  font-size:11px;
+  font-size:13px;
   color:var(--muted);
   padding:14px 20px 5px
 }
@@ -1255,17 +1263,17 @@ dialog::backdrop {
 }
 #search-results small {
   color:var(--green);
-  font-size:9px
+  font-size:12px
 }
 #search-results strong {
   display:block;
-  font-size:14px;
+  font-size:16px;
   font-weight:550;
   margin:3px 0
 }
 #search-results p {
   color:var(--muted);
-  font-size:11px;
+  font-size:14px;
   line-height:1.6
 }
 .search-footer {
@@ -1358,7 +1366,7 @@ dialog::backdrop {
   .doc-mobile-toc {
     display:block;
     margin-bottom:24px;
-    font-size:12px;
+    font-size:14px;
     color:var(--muted)
   }
   .doc-mobile-toc summary {
@@ -1508,7 +1516,7 @@ dialog::backdrop {
     font-size:30px
   }
   .prose {
-    font-size:13px
+    font-size:16px
   }
   .docs-sidebar {
     padding-right:12px
@@ -1770,24 +1778,24 @@ dialog::backdrop {
   }
   .doc-breadcrumb {
     margin-bottom:28px;
-    font-size:10px
+    font-size:13px
   }
   .doc-title h1 {
     font-size:29px
   }
   .doc-title>p:last-child {
-    font-size:13px
+    font-size:16px
   }
   .doc-title {
     padding-bottom:24px;
     margin-bottom:22px
   }
   .prose h2 {
-    font-size:21px;
+    font-size:23px;
     margin-top:34px
   }
   .prose h3 {
-    font-size:17px
+    font-size:20px
   }
   .prose th,.prose td {
     padding:10px 12px
@@ -1810,7 +1818,7 @@ dialog::backdrop {
     padding:14px 12px
   }
   .doc-pagination strong {
-    font-size:12px
+    font-size:15px
   }
   .not-found h1 {
     font-size:28px
@@ -1823,7 +1831,7 @@ dialog::backdrop {
     padding:16px
   }
   .search-dialog-head input {
-    font-size:13px
+    font-size:16px
   }
 }
 @media(prefers-reduced-motion:reduce) {

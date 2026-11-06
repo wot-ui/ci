@@ -16,7 +16,7 @@ pnpm exec wotci upload -p weixin`
 
 const actions = `# 所选 Action ref 需包含下方使用的 inputs
 # 项目构建完成后，无需 wotci.config.ts
-- uses: wot-ui/ci@v0
+- uses: wot-ui/ci-action@v1
   with:
     platform: weixin
     project-path: dist/build/mp-weixin

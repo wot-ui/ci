@@ -119,12 +119,13 @@ describe('verify-release', () => {
   })
 })
 
-describe('changelogithub 配置', () => {
-  it('release 必须保持 draft，否则 Marketplace 复选框永久消失', async () => {
-    const config = JSON.parse(
-      await readFile(path.join(repoRoot, 'changelogithub.config.json'), 'utf8'),
-    ) as { draft?: boolean }
-
-    expect(config.draft).toBe(true)
+describe('cli release is independent of the standalone Action', () => {
+  it('publishes release notes without requiring Marketplace publication', async () => {
+    const config = JSON.parse(await readFile(path.join(repoRoot, 'changelogithub.config.json'), 'utf8'))
+    const workflow = await readFile(path.join(repoRoot, '.github/workflows/release.yml'), 'utf8')
+    expect(config.draft).not.toBe(true)
+    expect(workflow).not.toContain('--draft')
+    expect(workflow).not.toContain('Publish this Action to the GitHub Marketplace')
+    expect(workflow).toContain('Verify published release')
   })
 })

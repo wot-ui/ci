@@ -1,6 +1,6 @@
 # Wot CI 文档站
 
-使用 Next.js App Router + React，构建时预渲染首页、20 个文档页面和搜索索引。视觉保持 CI 的发布工作流风格；README 与 docs 是文档内容来源，不重复维护正文。
+使用 Next.js App Router + React，构建时预渲染首页、22 个文档页面和搜索索引。视觉保持 CI 的发布工作流风格；`docs/` 中的独立 Markdown 文件是文档内容来源，不重复维护正文。
 
 ## 本地开发
 
@@ -48,8 +48,8 @@ pnpm site:preview    # next start，默认端口 4173
 - `app/`：Next 路由、metadata、全局样式、文档静态参数、搜索索引 Route Handler 和 404。
 - `components/`：首页、共享导航、搜索、主题、标签页、复制反馈与文档目录。内站导航使用 Next Link。
 - `lib/documents.ts`：通过 webpack 导入仓库 Markdown 和版本元数据，运行时不需要读取仓库文件。新增独立文档时在这里增加静态导入。
-- `lib/content.mjs`：页面分组与 Markdown 渲染；删除或重命名约定的 README 标题时校验失败，需同步映射。仅解析受信任的仓库文件。
+- `lib/content.mjs`：页面分组与 Markdown 渲染；每个页面对应独立文件，缺少或清空正文时校验失败；新增页面需同步映射。仅解析受信任的仓库文件。
 - `public/`：Logo 和首屏主题脚本。搜索索引由 Next 构建生成，不依赖外部搜索服务。
 - `design/`：Logo 设计参考，不进入网站公共资源。
 
-使用指南编辑根目录 `README.md`，支持矩阵、验收、路线图与维护者指南编辑 `docs/` 原文件。验证记录保留历史日期，不展示为实时状态。首页产品文案和流程示意维护在 `components/home.tsx`，代码示例维护在 `components/integration.tsx`。
+使用指南编辑 `docs/guides/` 中的对应文件，根目录 `README.md` 保留 CI 工具介绍、快速开始与各接入方式的入口，支持矩阵、验收、路线图与维护者指南编辑 `docs/` 原文件。验证记录保留历史日期，不展示为实时状态。首页产品文案和流程示意维护在 `components/home.tsx`，代码示例维护在 `components/integration.tsx`。

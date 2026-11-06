@@ -1,7 +1,7 @@
 name: Release
 
 # 只认完整版本号（v1.2.3 / v1.2.3-beta.1）。
-# 浮动主版本 tag（v0 / v1）由 marketplace-listing.yml 维护，不应该触发发版。
+# 旧 Action v0 标签保持在拆仓前版本；独立 Action 在 wot-ui/ci-action 发布。
 on:
   push:
     tags:
@@ -35,22 +35,8 @@ jobs:
       - name: Tag must match package.json version
         run: node scripts/verify-release.mjs "$GITHUB_REF_NAME"
 
-      - name: action.yml must be Marketplace-ready
+      - name: Verify legacy Action compatibility
         run: node scripts/verify-action-metadata.mjs
-
-      # 这一关防的是「有人删了 draft 配置」：release 一旦直接发布，
-      # Marketplace 复选框就再也不会出现，只能删掉 release 重来。
-      - name: Release must stay a draft
-        run: |
-          node -e '
-            const fs = require("node:fs")
-            const config = JSON.parse(fs.readFileSync("changelogithub.config.json", "utf8"))
-            if (config.draft !== true) {
-              console.error("::error::changelogithub.config.json 必须设置 draft: true，否则 GitHub Release 直接发布，Marketplace 复选框永久消失")
-              process.exit(1)
-            }
-            console.log("✔ release 会以 draft 形式创建")
-          '
 
       - run: pnpm lint
       - run: pnpm typecheck:all
@@ -58,20 +44,20 @@ jobs:
       - run: pnpm test:run
 
   release:
-    name: Publish npm + draft release
+    name: Publish npm
     needs: verify
     uses: sxzz/workflows/.github/workflows/release.yml@v1
     with:
       publish: true
-      # 只发 npm：release 由下面的 draft job 生成，
-      # 因为这里拿不到 changelogithub 的 --from/--to 参数（原因见 draft job 的注释）
+      # 只发 npm：release 由下面的 notes job 生成，
+      # 因为这里拿不到 changelogithub 的 --from/--to 参数（原因见 notes job 的注释）
       github-release: false
     permissions:
       contents: write
       id-token: write
 
-  draft:
-    name: Create draft release
+  notes:
+    name: Publish GitHub release
     needs: release
     runs-on: ubuntu-latest
     permissions:
@@ -99,40 +85,15 @@ jobs:
           # v0.4.1 的 release notes 就是这么空的。这里显式给定区间，结果稳定可复现。
           if prev=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null); then
             echo "变更区间：$prev -> $TAG"
-            npx --yes changelogithub@15 --from "$prev" --to "$TAG" --draft
+            npx --yes changelogithub@15 --from "$prev" --to "$TAG"
           else
             echo "没有上一个 tag，按首次发布处理：-> $TAG"
-            npx --yes changelogithub@15 --to "$TAG" --draft
+            npx --yes changelogithub@15 --to "$TAG"
           fi
 
-      - name: Draft release must exist
+      - name: Verify published release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-
-          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft,url > release.json 2>/dev/null; then
-            echo "::error::没有为 $TAG 创建出 release"
-            exit 1
-          fi
-
-          node -e '
-            const fs = require("node:fs")
-            const { isDraft, url } = JSON.parse(fs.readFileSync("release.json", "utf8"))
-            if (!isDraft) {
-              console.error("::error::release 已经是正式发布状态，Marketplace 复选框不会再出现。检查 changelogithub 是否带了 --draft。")
-              process.exit(1)
-            }
-            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-              "## 还差一步：勾选 Marketplace",
-              "",
-              `1. 打开 ${url}（draft release），顺手扫一眼 release notes 是否为空`,
-              "2. 勾选 **Publish this Action to the GitHub Marketplace**",
-              "3. 选择 Primary / Secondary category 后点 **Publish release**",
-              "",
-              "> GitHub 没有公开 API 能勾这个框，只能人工点一次。发布后 `Marketplace Listing` workflow 会校验 listing 是否跟上。",
-              "",
-            ].join("\n"))
-            console.log(`✔ draft release 就绪：${url}`)
-          '
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft,url --jq 'if .isDraft then error("Expected a published CLI release") else .url end'

@@ -1,96 +1,43 @@
-# 发布流程
+# CLI 发布流程
 
-> 一句话：npm 自动发，GitHub Release 自动建但**保持 draft**，Marketplace 勾选只留一次人工点击。
+本仓库发布 `@wot-ui/ci` npm 包和对应 GitHub Release。GitHub Action 已独立到 [wot-ui/ci-action](https://github.com/wot-ui/ci-action)，使用自己的版本、CI、Release 和 Marketplace 条目。
 
-## 为什么 release 必须是 draft
-
-GitHub Marketplace 的「Publish this Action to the GitHub Marketplace」复选框**只出现在「Draft a new release」表单里**。release 一旦正式发布，就再也回不到 draft 状态，REST / GraphQL 也没有任何参数能勾这个框（`gh release create` 同样没有）。
-
-所以发布链路里唯一不可自动化的就是这一下点击。为了让这次点击始终存在，[`changelogithub.config.json`](../changelogithub.config.json) 把 changelogithub 设成 draft 模式：
-
-```json
-{ "draft": true }
-```
-
-> 0.4.0 及更早的版本是「tag 推上去 → changelogithub 直接建正式 release」，复选框从没出现过，所以历史版本无法上架（补救办法见文末）。
-
-## 一次正常发布
+## 发布 npm 包
 
 ```sh
-pnpm release   # bumpp：改版本 → 提交 chore: release vX.Y.Z → 打 annotated tag → push
+pnpm release
 ```
 
-tag 推送后 `Release` workflow（[release.yml](../.github/workflows/release.yml)）依次做：
+`bumpp` 更新版本、提交、创建精确标签并推送。`Release` 工作流依次执行：
 
-| 阶段 | 内容 |
-| --- | --- |
-| `verify` | tag 与 `package.json` 版本一致、`action.yml` 合规、`changelogithub.config.json` 仍是 draft、lint、typecheck、test、build |
-| `release` | 只做 `pnpm publish`（OIDC trusted publishing），不建 release |
-| `draft` | 用**显式 tag 区间**生成 draft release（`git describe` 找上一个 tag），并断言它确实是 draft，把下一步指引写进 Job Summary |
+1. 检查标签与 `package.json.version` 一致，验证旧 Action 元数据及 lint、类型、构建和测试。
+2. 通过 OIDC trusted publishing 发布 npm 包。
+3. 按明确的 tag 区间生成并发布 GitHub Release。
 
-> 为什么不复用 `sxzz/workflows` 自带的 changelog 步骤：它内部只执行 `pnpx changelogithub`，传不进 `--from/--to`。changelogithub 于是用 `git tag --points-at HEAD` 推断区间——同一提交上挂着多个 tag（比如浮动 `v0`）时会得到多行的 ref，推断出 `from == to` 时则静默产出「0 commits / No significant changes」。v0.4.1 的 release notes 就是这么空的。所以 `release` job 传 `github-release: false`，由 `draft` job 自己指定区间。
+CLI 发布无需等待 Marketplace 操作。`changelogithub.config.json` 不再设置 `draft: true`；旧 `Marketplace Listing` 工作流已移除，不再移动旧 Action 的 `v0` 标签。
 
-然后**人工**（约 10 秒）：
+## 旧 Action 兼容
 
-1. 打开 Job Summary 里的 draft release 链接
-2. 勾选 **Publish this Action to the GitHub Marketplace**
-3. 选 Primary / Secondary category → **Publish release**
+- `wot-ui/ci@v0` 保留在拆仓前的 `v0.5.3` 提交；既有精确标签不重写。
+- 根目录 `action.yml`、相关脚本和回归测试继续保留，兼容历史调用和核心仓库自身的 CLI 验证。
+- 旧入口的浮动引用默认选择 npm `latest`；需要固定 CLI 时仍须指定 `package-version` 或锁定项目本地依赖。
+- 原 Marketplace 条目 `wot-ui-ci` 与历史版本保留；新入口使用 `wot-ui/ci-action@v1`，新条目为 `wot-ui-ci-action`。
 
-发布后 `Marketplace Listing` workflow（[marketplace-listing.yml](../.github/workflows/marketplace-listing.yml)）自动跑：
+独立 Action 的默认 CLI 版本由其 `package.json.wotciVersion` 明确记录；核心包更新不会自动修改 Action 默认版本。
 
-- 轮询 <https://github.com/marketplace/actions/wot-ui-ci>，确认页面版本已经是新 tag；对不上就开 issue 并标红
-- 把浮动主版本 tag `v0` 强制指向本版本，用户就能写 `uses: wot-ui/ci@v0`
+## 独立 Action 发布
 
-## 首次上架（0.4.1）
+请按 [Action 发布指南](https://github.com/wot-ui/ci-action/blob/main/docs/releasing.md) 操作：测试通过后创建 Action 标签，发布 draft 并勾选 Marketplace，稳定发布后再更新其主版本标签。
 
-0.4.0 因为历史流程已经无法上架，首个上架版本是 **0.4.1**：
-
-1. `pnpm release` → 选 `0.4.1`
-2. 等 `Release` 跑完，打开 draft
-3. 勾选 Marketplace，分类建议：
-   - Primary：`Continuous integration`
-   - Secondary：`Deployment`（备选 `Utilities`）
-4. Publish
-5. 等 `Marketplace Listing` 变绿；变红就按 issue 里的步骤处理
-
-> `uses: wot-ui/ci@v0` 要等 0.4.1 发布、`major-tag` job 跑完才存在。在那之前请用 `@v0.4.1`。
-
-## release notes 是空的怎么修
-
-说明 `draft`/`ensure-draft` 那步的区间推断出了问题（多见于 0.4.1 及更早）。本地重新生成后覆盖即可：
+## 本地检查
 
 ```sh
-# 1. 本地生成正确 notes（需要能访问 GitHub）
-npx changelogithub@15 --from v0.4.0 --to v0.4.1 --output notes.md
-
-# 2. 覆盖已发布的 release body
-gh release edit v0.4.1 --notes-file notes.md
+pnpm verify:action
+pnpm verify:release vX.Y.Z
+pnpm lint
+pnpm typecheck:all
+pnpm test:run
+pnpm build
 ```
 
-没有 `gh` 登录的话，网页上 Edit release 把 `notes.md` 的内容粘进去也一样。
-
-## 忘了勾选 / listing 落后怎么办
-
-```text
-Releases → 该版本 → Delete release（弹窗里不要勾删 tag）
-→ Draft a new release → Choose a tag → 选已存在的 vX.Y.Z
-→ 勾选 Marketplace → Publish
-```
-
-复用已有 tag 不会重跑 npm 发布，也不会重新触发 `Release` workflow。代价只有原 release 的正文与表情会丢。
-
-## 维护者 checklist
-
-- [ ] 版本号用 `pnpm release` 改，别手改 `package.json`（`verify` 会拦）
-- [ ] 改了 `action.yml` 的 inputs 后，确认 `scripts/github-action.sh` 里接了 `INPUT_*`（`verify:action` 会拦）
-- [ ] 新增 release 默认仍是 draft（别删 `changelogithub.config.json`）
-- [ ] 上架前扫一眼 draft 的 release notes 不是空的（空了说明区间推断出了问题，先修再发）
-- [ ] 上架后隔一分钟看一眼 Marketplace listing 的版本号
-
-## 本地自检
-
-```sh
-pnpm verify:action                   # action.yml 是否满足 Marketplace 要求
-pnpm verify:release v0.4.1           # tag 与 package.json 是否一致
-pnpm verify:marketplace v0.4.1       # listing 是否已指向该版本（需要联网）
-```
+根 README 保留 CI 工具定位和接入入口；Action 详细文档在独立仓库维护，文档站保留指向它的入口。

@@ -1,5 +1,5 @@
 name: wot-ui-ci
-description: Run wot-ui-ci upload, preview, release, doctor or WeChat diagnostics in GitHub Actions
+description: Legacy Wot CI Action. For new workflows use wot-ui/ci-action. Existing inputs remain compatible.
 author: wot-ui
 
 branding:

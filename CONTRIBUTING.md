@@ -21,7 +21,7 @@ pnpm typecheck:all  # 包含 playground
 pnpm lint
 ```
 
-改 CLI 时用 playground 做真实链路验证：`pnpm dev:playground` 起 H5 调试，上传/预览命令见 [Playground](README.md#playground)。
+改 CLI 时用 playground 做真实链路验证：`pnpm dev:playground` 起 H5 调试，上传/预览命令见 [Playground](docs/guides/playground.md#playground)。
 
 ## 目录结构
 
@@ -81,13 +81,13 @@ feat(action): 新增 composite GitHub Action
 
 1. 一个 PR 只做一件事，尽量小
 2. 提交前本地跑通：`pnpm lint && pnpm typecheck:all && pnpm test:run`
-3. 面向用户的变化（命令、参数、配置字段、行为）同步更新 README —— README 是主要文档
+3. 面向用户的变化（命令、参数、配置字段、行为）同步更新 `docs/guides/` 中的对应指南；根 README 保留 CI 工具介绍、快速开始与各接入方式的入口
 4. 不要提交私钥、appid、真实项目配置；`dist`、`coverage`、`.wotci`、`.pnpm-store` 已在 `.gitignore` 中
 5. CI 会跑 lint + typecheck，以及八组矩阵（Linux Node 20/22/24/26、Windows Node 20/24、macOS Node 20/24）的 build + test；Linux Node 24 执行覆盖率门禁。能力自检在 Linux Node 20/22/24/26 打包、安装并验证消费者项目，另有 playground 冒烟
 
 ## 发布
 
-维护者流程见 [docs/releasing.md](docs/releasing.md)，包含 npm 发布、draft release 与 GitHub Marketplace 上架的人工那一步。
+维护者流程见 [docs/releasing.md](docs/releasing.md)，包含 npm 与 GitHub Release 发布。GitHub Action 在 [独立仓库](https://github.com/wot-ui/ci-action) 维护和发布。
 
 ## 安全问题
 

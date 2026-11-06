@@ -2,9 +2,9 @@
 /**
  * 校验发布 tag 与 package.json 版本一致。
  *
- * tag / npm / GitHub Release / Marketplace listing 四者靠版本号对齐，
- * 任何一处对不上都会让用户 `uses: wot-ui/ci@vX.Y.Z` 拿到错的东西，
+ * tag / npm / GitHub Release 三者靠版本号对齐，
  * 所以在发版 workflow 里先卡这一关。
+ * GitHub Action 已迁移到 wot-ui/ci-action，使用独立版本。
  *
  * 用法：node scripts/verify-release.mjs [tag] [package.json 路径]
  *   tag 缺省取 GITHUB_REF_NAME，便于在 Actions 里直接用。
