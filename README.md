@@ -1152,7 +1152,7 @@ preview: |
 
 #### 完整 inputs 参考
 
-下表列出 `action.yml` 的全部 29 个 inputs。默认值是 Action 层的默认值，`空` 表示未显式传入；环境变量、配置文件和 CLI 仍可能提供回退值。元数据中的 inputs 均非必填，但无配置模式仍须满足所选平台的凭据与路径要求。布尔值建议写成字符串 `'true'` / `'false'`。
+下表列出 `action.yml` 的全部 30 个 inputs。默认值是 Action 层的默认值，`空` 表示未显式传入；环境变量、配置文件和 CLI 仍可能提供回退值。元数据中的 inputs 均非必填，但无配置模式仍须满足所选平台的凭据与路径要求。布尔值建议写成字符串 `'true'` / `'false'`。
 
 | input | 默认值 | 用途与生效范围 |
 | --- | --- | --- |
@@ -1183,12 +1183,16 @@ preview: |
 | `history` | `auto` | 仅用于 `release`。`false` 禁用历史；`auto` 和 `true` 均沿用配置（未配置时开启），`true` 不会覆盖配置中的 `history: false`。默认写入 `.wotci/history.json`，跨运行保留需自行归档 / 恢复 |
 | `args` | 空 | 追加 CLI 参数，例如 `--concurrency 2`；按空白拆分，不支持 shell 引号分组、变量展开或命令替换。无配置模式禁止通过它覆盖 `--config` / `-c`、`--cwd`、`--platform` / `-p`、`--all` |
 | `package-version` | 空 | 仅在没有本地 CLI、使用 npx 时生效；显式值优先，否则精确 Action 版本 ref 映射到同版本 npm 包，其他 ref 回退到 `latest` |
+| `registry` | 空 | 临时 CLI 安装源：优先此 input，再取 `npm_config_registry` / `NPM_CONFIG_REGISTRY`，最后默认 `https://registry.npmjs.org/`；覆盖项目 `.npmrc` 的普通 `registry`，不修改项目依赖安装源 |
 | `install-dependencies` | `false` | 在 `working-directory` 安装依赖后再运行 CLI，不负责构建；包管理器选择规则见下文 |
 | `node-version` | `20` | 传给 Action 内部的 `actions/setup-node`。即使此前 job 已安装其他 Node 版本，Action 仍执行此设置；需要保持一致时显式指定 |
 
 执行与版本规则：
 
 - Action 优先使用 `working-directory/node_modules/.bin/wotci`；存在时 `package-version` 不会替换它。不存在时调用 `npx --yes @wot-ui/ci@<version>`。
+- 临时 CLI 使用独立的 npm 缓存，按操作系统、架构、Node 版本、CLI 版本选择器、registry 和安装脚本隔离。自动恢复并保存包下载缓存和 npx 安装目录，不缓存项目文件、生成的配置、私钥或 npm 日志。准备 CLI 成功后，即使上传失败也会保存缓存；缓存服务失败不会阻止上传。项目本地 CLI 可用时跳过此缓存。
+- 日志分别显示「CLI 准备耗时」和「CLI 执行耗时」；前者包含依赖解析、下载和安装，后者包含 CLI 启动及实际命令。首次运行或缓存未命中仍需安装；浮动版本仍由 npm 正常解析，缓存不会把 `latest` 固定为旧版本。
+- `registry` 和 CLI 缓存是 `v0.5.1` 之后的优化，需使用包含改动的 Action ref。GitHub 托管 runner 默认使用 npm 官方源；如需镜像可设置 `with.registry`。这不会修改仓库的 `.npmrc`。
 - npx 的版本优先取 `package-version`，其次取精确 Action ref（如 `@v0.4.1` → `0.4.1`）；`@v0`、`@main`、分支和提交 SHA 等不能映射到 npm 版本的 ref 均回退到 `latest`。固定 Action SHA 时，如需同时固定 CLI 版本，应安装并锁定本地依赖或设置 `package-version`。
 - Action 通过 composite 步骤的 `env` 显式接入 `github.action_ref`。`v0.5.0` 的旧实现缺少此接线，使用该旧标签时请设置 `package-version: '0.5.0'`，避免意外回退到 `latest`；新修复需要使用包含修复的 Action ref。
 - 配置文件中使用 `import { defineConfig } from '@wot-ui/ci'` 时，需在项目中安装该依赖以便解析；无配置模式不要求安装。

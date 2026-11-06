@@ -132,7 +132,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     })
 
     const args = (await readFile(outputFile, 'utf8')).trim().split('\n')
-    expect(args).toEqual(['--yes', '@wot-ui/ci@1.2.3', 'doctor'])
+    expect(args).toEqual(['--yes', '--registry', expect.any(String), '--cache', expect.any(String), '@wot-ui/ci@1.2.3', 'doctor'])
   })
 
   it.each(['v0.5.0', '0.5.0', 'v0.5.1-beta.1'])('没有显式版本时跟随 composite 注入的 action ref: %s', async (ref) => {
@@ -156,7 +156,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     })
 
     const args = (await readFile(outputFile, 'utf8')).trim().split('\n')
-    expect(args).toEqual(['--yes', `@wot-ui/ci@${ref.replace(/^v/, '')}`, 'doctor'])
+    expect(args).toEqual(['--yes', '--registry', expect.any(String), '--cache', expect.any(String), `@wot-ui/ci@${ref.replace(/^v/, '')}`, 'doctor'])
   })
 
   it.each(['v0', 'main', 'b202e082b134bc905ab11d96cceadb97a11aa5de', ''])('非版本 action ref 回落到 latest: %s', async (ref) => {
@@ -179,6 +179,6 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     })
 
     const args = (await readFile(outputFile, 'utf8')).trim().split('\n')
-    expect(args).toEqual(['--yes', '@wot-ui/ci@latest', 'doctor'])
+    expect(args).toEqual(['--yes', '--registry', expect.any(String), '--cache', expect.any(String), '@wot-ui/ci@latest', 'doctor'])
   })
 })
