@@ -335,6 +335,7 @@ export default defineConfig(({ env, packageJson }) => ({
 | `minify` | `boolean` | 压缩所有代码 |
 | `codeProtect` | `boolean` | 代码保护 |
 | `autoPrefixWXSS` | `boolean` | 样式自动补全 |
+| `compileWorklet` | `boolean` | 编译 worklet |
 
 微信 CI 文档：<https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html>
 
@@ -367,6 +368,8 @@ export default defineConfig(({ env, packageJson }) => ({
 | `autoincrement` | `boolean` | 否 | 是否由平台自动递增版本号，默认 `false` |
 
 钉钉上传文档：<https://github.com/open-dingtalk/dingtalk-design-cli>
+
+`projectType` 可选值：`dingtalk-personal`、`dingtalk-biz-isv`、`dingtalk-biz`、`dingtalk-biz-custom`、`dingtalk-biz-worktab-plugin`。该字段目前不传给上传 SDK，不能据此切换上传行为。
 
 ### 兼容 uni-mini-ci
 
@@ -947,6 +950,9 @@ jobs:
 | `robot` | `WEIXIN_ROBOT` | 微信机器人编号，1–30，默认 1 |
 | `tool-id` | `ALIPAY_TOOL_ID` | 支付宝必填 |
 | `token` | `DINGTALK_TOKEN` | 钉钉必填 |
+| `setting` | `WEIXIN_SETTING` | 微信编译设置 JSON 对象 |
+| `preview` | `WEIXIN_PREVIEW` / `ALIPAY_PREVIEW` | 平台预览设置 JSON 对象 |
+| `platform-options` | `WEIXIN_OPTIONS` / `ALIPAY_OPTIONS` / `DINGTALK_OPTIONS` | 平台可选配置 JSON 对象 |
 
 配置方式与优先级：
 
@@ -955,8 +961,156 @@ jobs:
 - 只传 `env` 时，优先保留已有的配置文件自动发现逻辑（含 `package.json` 和 `.minicirc`）；项目没有配置时才使用环境变量生成配置。
 - 无配置文件模式中，非空 `with` 值优先于对应 `env`；显式提供任一种私钥 input 后，不再读取环境变量里的两种私钥字段。选定来源中的私钥文本和私钥路径不能同时提供。
 - `upload-version` 设置上传版本；原有 `version` input 仍只用于体验版和版本删除命令。
-- 微信默认使用 `miniProgram` 项目类型及 `setting.useProjectConfig: true`；支付宝、钉钉默认关闭平台版本自动递增。插件、小游戏、自定义编译选项、版本策略等高级配置继续使用配置文件。
+- 微信默认使用 `miniProgram` 项目类型及 `setting.useProjectConfig: true`；支付宝、钉钉默认关闭平台版本自动递增。平台扩展选项可通过下方 JSON inputs 配置；顶层 `versionStrategy`、`budgets`、`release` 编排仍使用配置文件。
 - Action 生成的配置与私钥放在临时目录，正常结束或 CLI 报错时均清理。不会把私钥或 token 拼入命令行日志。
+
+#### 编译、预览与平台扩展参数
+
+`setting`、`preview`、`platform-options` 均接受 **JSON 对象字符串**，沿用平台配置原有字段名。它们是 `0.5.0` 之后新增的 inputs，必须选择包含此功能的 Action ref；`@v0.5.0` 尚不支持。不要直接写 `with.minifyJS` 或 `args: --minifyJS`。
+
+构建完成后可直接配置微信编译选项，无需创建 `wotci.config.ts`。合并前将下面的 `@main` 替换为包含此改动的分支或提交，发布后可改为对应版本标签：
+
+```yaml
+- uses: wot-ui/ci@main
+  with:
+    platform: weixin
+    project-path: dist/build/mp-weixin
+    private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    setting: |
+      {
+        "useProjectConfig": true,
+        "es6": true,
+        "es7": true,
+        "minifyJS": true,
+        "minifyWXML": true,
+        "minifyWXSS": true,
+        "codeProtect": false
+      }
+    platform-options: '{"type":"miniProgram","ignores":["test/**"]}'
+  env:
+    WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
+```
+
+纯环境变量也支持：
+
+```yaml
+- uses: wot-ui/ci@main
+  env:
+    WOTCI_PLATFORM: weixin
+    WEIXIN_PROJECT_PATH: dist/build/mp-weixin
+    WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
+    WEIXIN_PRIVATE_KEY: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    WEIXIN_SETTING: '{"minifyJS":false,"minifyWXML":true}'
+    WEIXIN_OPTIONS: '{"type":"miniProgramPlugin","ignores":["test/**"]}'
+```
+
+微信 `setting` 支持 `useProjectConfig`、`es6`、`es7`、`disableUseStrict`、`minifyJS`、`minifyWXML`、`minifyWXSS`、`minify`、`codeProtect`、`autoPrefixWXSS`、`compileWorklet`，这些字段必须是 JSON 布尔值（`false` 而非 `"false"`）。额外的 SDK setting 字段也会原样传递，是否生效取决于所用 `miniprogram-ci` 版本。未指定 `useProjectConfig` 时补为 `true`，可显式关闭。字段作用见 [微信配置](#微信-weixin)。
+
+预览时将命令改为 `command: preview`，并添加如下 input：
+
+```yaml
+preview: |
+  {
+    "pagePath": "pages/index/index",
+    "searchQuery": "from=ci&debug=1",
+    "scene": 1011,
+    "qrcodeFormat": "image",
+    "qrcodeOutputDest": "artifacts/preview.png",
+    "threads": 2,
+    "bigPackageSizeSupport": false
+  }
+```
+
+`platform-options` 支持当前平台配置的全部可选字段，包含嵌套的 `setting` / `preview`：
+
+| 平台 | 可用字段 | 说明 |
+| --- | --- | --- |
+| 微信 | `type`、`ignores`、`robot`、`setting`、`preview`、`ide` | `type`：`miniProgram` / `miniGame` / `miniProgramPlugin` / `miniGamePlugin`；`ignores`：字符串数组；`robot`：1–30 整数 |
+| 支付宝 | `clientType`、`autoincrement`、`preview`、`ide` | `clientType` 取值见 [支付宝配置](#支付宝-alipay)；`autoincrement` 为布尔值 |
+| 钉钉 | `projectType`、`autoincrement` | `projectType` 取值见 [钉钉配置](#钉钉-dingtalk)，当前仅保留字段，上传实现未使用；`autoincrement` 为布尔值，钉钉不支持预览 |
+
+微信 `preview` 字段（也可写在 `platform-options.preview`，或通过 `WEIXIN_PREVIEW` 提供）：
+
+| 字段 | 类型 / 默认行为 | 用途 |
+| --- | --- | --- |
+| `qrcodeFormat` | 字符串，默认 `image` | `terminal` / `image` / `base64` |
+| `qrcodeOutputDest` | 字符串，缺省写入 `.wotci/preview/` | 二维码文件路径，相对 `working-directory` |
+| `pagePath` | 字符串，可省略 | 预览启动页面 |
+| `searchQuery` | 字符串，可省略 | 启动页面参数，如 `from=ci&debug=1` |
+| `scene` | 非负整数，可省略 | 预览场景值 |
+| `desc` | 字符串，缺省沿用上传描述 | 预览备注 |
+| `robot` | 1–30 整数，缺省沿用上传机器人 | 预览机器人编号 |
+| `setting` | JSON 对象，缺省沿用上传 `setting` | 预览专用编译设置，支持相同的编译字段 |
+| `threads` | 非负整数，省略时由 SDK 决定 | 本地编译线程数 |
+| `bigPackageSizeSupport` | 布尔值，省略时由 SDK 决定 | 预览时将主包、分包体积上限调整为 4M |
+
+支付宝 `preview` 字段（也可写在 `platform-options.preview`，或通过 `ALIPAY_PREVIEW` 提供；省略时不向 SDK 指定该值）：
+
+| 字段 | 类型 | 用途 |
+| --- | --- | --- |
+| `page` | 字符串 | 预览启动页面 |
+| `pageQuery` | 字符串 | 页面参数 |
+| `query` | 字符串 | 全局启动参数 |
+| `scene` | 字符串 | 场景值，注意与微信的整数类型不同 |
+| `autoPush` | 布尔值 | 是否自动推送到客户端 |
+| `ignoreHttpDomainCheck` | 布尔值 | 是否忽略 HTTP 请求域名白名单校验 |
+| `ignoreWebViewDomainCheck` | 布尔值 | 是否忽略 WebView 域名白名单校验 |
+
+微信 `ide` 支持 `cliPath`、`port`（1–65535）、`lang`（`zh` / `en`），支付宝 `ide` 支持 `appPath`。可保留这些配置，但无配置模式仍只支持 `upload` / `preview` / `doctor`，不执行 IDE 命令。
+
+支付宝预览步骤示例（放在构建完成后，下载二维码到本地；执行上传时改为 `command: upload` 并移除预览专用字段）：
+
+```yaml
+- uses: wot-ui/ci@main
+  with:
+    command: preview
+    platform: alipay
+    project-path: dist/build/mp-alipay
+    appid: ${{ secrets.ALIPAY_APPID }}
+    private-key: ${{ secrets.ALIPAY_PRIVATE_KEY }}
+    tool-id: ${{ secrets.ALIPAY_TOOL_ID }}
+    platform-options: |
+      { "clientType": "alipay", "autoincrement": false }
+    preview: |
+      {
+        "page": "pages/index/index",
+        "pageQuery": "from=ci",
+        "query": "debug=1",
+        "scene": "1001",
+        "autoPush": false,
+        "ignoreHttpDomainCheck": false,
+        "ignoreWebViewDomainCheck": false
+      }
+    args: --qr-output artifacts/alipay-preview.png
+```
+
+支付宝 `clientType` 默认 `alipay`，同时用于上传、预览及版本查询。`autoincrement` 仅影响上传：`false` 时检查上传版本高于线上版本，`true` 时交给平台递增。微信编译设置不适用于支付宝，因此不能传 `setting` / `minifyJS`。
+
+钉钉上传步骤示例（放在构建完成后）：
+
+```yaml
+- uses: wot-ui/ci@main
+  with:
+    platform: dingtalk
+    project-path: dist/build/mp-alipay
+    appid: ${{ secrets.DINGTALK_APPID }}
+    token: ${{ secrets.DINGTALK_TOKEN }}
+    upload-version: 1.2.3
+    platform-options: '{"autoincrement":true}'
+```
+
+钉钉 `autoincrement` 默认 `false`，上传使用指定版本；开启后由平台递增。Action 的无配置上传入口仍要求提供 `upload-version` / `WOTCI_VERSION` 或当前目录的 `package.json.version`。`ALIPAY_OPTIONS` / `DINGTALK_OPTIONS` 可提供对应 `platform-options` 的 JSON，`ALIPAY_PREVIEW` 可提供预览 JSON。
+
+**支持范围以 Wot CI 已实现的平台配置为准，不等于底层 SDK 所有参数都已开放。** 微信 `setting` 额外字段按 SDK 能力透传；其他平台扩展字段按上表校验。支付宝上传的 `experience` 当前固定为 `true`，不接受配置；钉钉的 `projectType` 仅保留、不参与上传，且没有预览能力。JSON 入口不会额外赋予这些能力。
+
+优先级与限制：
+
+- 每个 JSON input 的非空 `with` 值优先于对应 `env`，选中对象整体使用，不合并另一个来源。空白字符串视为未传，`{}` 是显式空对象。
+- 专用 `setting` / `preview`（或其 env 回退）整体替换 `platform-options.setting` / `.preview`，不做深合并。`robot` 按 input → `WEIXIN_ROBOT` → `platform-options.robot` → `1` 取值。
+- 微信未提供 `preview.setting` 时沿用上传 `setting`；提供后整体替换，不自动合并上传设置，也不自动补 `useProjectConfig`。CLI 预览参数（如 `args` 中的 `--qr-output`）仍优先于对应预览配置。
+- JSON 中的路径仍相对 `working-directory`，可以含空白；参数不会作为 shell 代码执行。
+- `appid`、`projectPath`、`privateKey`、`privateKeyPath`、`toolId`、`token` 使用专用 inputs / env，不能放进 `platform-options`。不支持的平台字段、已知字段的错误类型、无效 JSON 会在 CLI 执行前报错，不回显原始 JSON。
+- 显式 `config` 不能混用扩展 inputs；只传扩展 env 时仍优先自动发现已有配置文件，不自动注入或覆盖该文件。需强制无配置模式时显式传 `project-path` 或扩展 input。
 
 #### 复用配置文件
 
@@ -998,7 +1152,7 @@ jobs:
 
 #### 完整 inputs 参考
 
-下表列出 `action.yml` 的全部 26 个 inputs。默认值是 Action 层的默认值，`空` 表示未显式传入；环境变量、配置文件和 CLI 仍可能提供回退值。元数据中的 inputs 均非必填，但无配置模式仍须满足所选平台的凭据与路径要求。布尔值建议写成字符串 `'true'` / `'false'`。
+下表列出 `action.yml` 的全部 29 个 inputs。默认值是 Action 层的默认值，`空` 表示未显式传入；环境变量、配置文件和 CLI 仍可能提供回退值。元数据中的 inputs 均非必填，但无配置模式仍须满足所选平台的凭据与路径要求。布尔值建议写成字符串 `'true'` / `'false'`。
 
 | input | 默认值 | 用途与生效范围 |
 | --- | --- | --- |
@@ -1011,9 +1165,12 @@ jobs:
 | `private-key-path` | 空 | 无配置模式的微信 / 支付宝私钥文件，相对 `working-directory`；必须提前存在 |
 | `upload-version` | 空 | 无配置模式上传版本：input → `WOTCI_VERSION` → 当前执行目录的 `package.json.version`；上传时必须能取得版本 |
 | `upload-desc` | 空 | 无配置模式上传描述：input → `WOTCI_DESC` → 当前执行目录的 `package.json.description` |
-| `robot` | 空 | 无配置模式的微信机器人编号：input → `WEIXIN_ROBOT` → `1`，有效范围 1–30 |
+| `robot` | 空 | 无配置模式的微信机器人编号：input → `WEIXIN_ROBOT` → `platform-options.robot` → `1`，有效范围 1–30 |
 | `tool-id` | 空 | 无配置模式的支付宝工具 ID；与 `ALIPAY_TOOL_ID` 至少提供一个 |
 | `token` | 空 | 无配置模式的钉钉 API token；与 `DINGTALK_TOKEN` 至少提供一个。不是 GitHub 评论用的 token |
+| `setting` | 空 | 无配置模式的微信编译设置 JSON；回退到 `WEIXIN_SETTING`，再取 `platform-options.setting`；默认补 `useProjectConfig: true` |
+| `preview` | 空 | 无配置模式的预览设置 JSON；回退到 `WEIXIN_PREVIEW` / `ALIPAY_PREVIEW`，再取 `platform-options.preview`；钉钉不支持 |
+| `platform-options` | 空 | 无配置模式的平台可选配置 JSON；回退到 `WEIXIN_OPTIONS` / `ALIPAY_OPTIONS` / `DINGTALK_OPTIONS`；凭据和产物路径使用专用 inputs |
 | `working-directory` | `.` | CLI 执行目录，同时决定配置、产物、私钥、结果文件的相对路径及本地 CLI / package.json 的查找位置 |
 | `summary` | 空 | Markdown 结果文件；仅传递给 `upload`、`preview`、`release`、`build-npm`、`sourcemap`、`inspect`、`quality`，其他命令忽略此 input；写入文件后可由后续步骤发布到 Job Summary |
 | `json` | `false` | 传递 `--json`，在 CLI stdout 输出 JSON；不自动创建 artifact，也不代表 Action 整个步骤的日志只有 JSON |
@@ -1033,6 +1190,7 @@ jobs:
 
 - Action 优先使用 `working-directory/node_modules/.bin/wotci`；存在时 `package-version` 不会替换它。不存在时调用 `npx --yes @wot-ui/ci@<version>`。
 - npx 的版本优先取 `package-version`，其次取精确 Action ref（如 `@v0.4.1` → `0.4.1`）；`@v0`、`@main`、分支和提交 SHA 等不能映射到 npm 版本的 ref 均回退到 `latest`。固定 Action SHA 时，如需同时固定 CLI 版本，应安装并锁定本地依赖或设置 `package-version`。
+- Action 通过 composite 步骤的 `env` 显式接入 `github.action_ref`。`v0.5.0` 的旧实现缺少此接线，使用该旧标签时请设置 `package-version: '0.5.0'`，避免意外回退到 `latest`；新修复需要使用包含修复的 Action ref。
 - 配置文件中使用 `import { defineConfig } from '@wot-ui/ci'` 时，需在项目中安装该依赖以便解析；无配置模式不要求安装。
 - `install-dependencies: 'true'` 按顺序检查当前目录：`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`（缺少 pnpm 时尝试 `corepack enable`）；存在 `yarn.lock` 且 yarn 可用 → `yarn install --frozen-lockfile`；`package-lock.json` → `npm ci`；存在 `bun.lockb` 且 bun 可用 → `bun install --frozen-lockfile`；其余情况 → `npm install`。仅有 `bun.lock` 不会匹配 bun 分支。需要特定包管理器或 monorepo 根目录安装时，建议在前面的独立步骤完成安装。
 - 使用私钥文件路径时，由调用方提前落盘并负责清理；建议写入 `$RUNNER_TEMP`、设置 `chmod 600` 并在 `if: always()` 的步骤删除。传 `private-key` 原文时则由 Action 创建和清理临时文件。
@@ -1080,6 +1238,8 @@ jobs:
 `summary` 接收实际文件路径，不能写成 `${{ env.GITHUB_STEP_SUMMARY }}`：GitHub 默认环境变量不在 `env` context 中；直接传字面量 `$GITHUB_STEP_SUMMARY` 也不会由 Action 二次展开。上例先写明确路径，再在 `run` 的 shell 中读取 `$GITHUB_STEP_SUMMARY`，参见 [GitHub 变量说明](https://docs.github.com/en/actions/reference/workflows-and-actions/variables)。
 
 Action 当前不声明结构化 `outputs`，不能使用 `steps.<id>.outputs.json` 读取结果。请使用 `json-output` 文件；失败发生在 CLI 生成 JSON 之前时，该文件可能为空或不存在，应先检查内容再解析。文件存在不代表成功，需同时检查步骤状态和 JSON 的 `ok`；Action 保留 CLI 非零退出码。`json-output` 不包含包装脚本和 SDK 的诊断日志，也不会自动上传 artifact。
+
+上传 / 预览失败时，批量文本日志及 Summary 会显示平台错误和已捕获的 `cause` 错误链，JSON 则在 `results[].error.cause` 中保留原因。`0.5.0` 的旧 CLI 在批量文本日志及 Summary 中只显示外层消息，排查时可先启用 `json: 'true'` / `json-output` 查看底层原因；升级到包含修复的 CLI 后无需依赖 JSON 才能看到错误链。仅升级 Action ref 但继续使用项目内旧版 CLI，不会修复旧版 CLI 的日志行为。
 
 多平台可分别调用上述步骤，或在 job 上使用 `strategy.matrix.include` 为每个平台设置构建命令、产物路径和 Secret 名称，再通过 `${{ matrix.platform }}`、`${{ secrets[matrix.appid_secret] }}` 等传入。每个无配置模式调用只选一个平台；矩阵归档时在 artifact 名称中加入 `${{ matrix.platform }}` 避免重名。需要在一次发布中统一编排多个平台时使用配置文件模式的 `release`。
 

@@ -34,6 +34,8 @@ describe('action.yml', () => {
     }
     const execution = action.runs.steps.find(step => step.run?.includes('github-action.sh'))!
     expect(execution.shell).toBe('bash')
+    // eslint-disable-next-line no-template-curly-in-string -- GitHub expression.
+    expect(execution.env?.WOTCI_ACTION_REF).toBe('${{ github.action_ref }}')
     expect(execution.run).not.toMatch(/inputs[.[]/)
     for (const [name, definition] of Object.entries(action.inputs)) {
       const reference = `\${{ inputs.${name} }}`
@@ -77,6 +79,8 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
       env: {
         ...process.env,
         INPUT_ARGS: '--concurrency 2',
+        WOTCI_ACTION_REF: 'v0.5.0',
+        INPUT_PACKAGE_VERSION: '9.9.9',
         INPUT_COMMAND: 'upload',
         INPUT_CONFIG: 'wotci.config.ts',
         INPUT_DRY_RUN: 'true',
@@ -120,6 +124,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
         ...process.env,
         INPUT_COMMAND: 'doctor',
         INPUT_PACKAGE_VERSION: '1.2.3',
+        WOTCI_ACTION_REF: 'v0.5.0',
         INPUT_WORKING_DIRECTORY: cwd,
         OUTPUT_FILE: outputFile,
         PATH: `${binDir}:${process.env.PATH}`,
@@ -130,7 +135,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     expect(args).toEqual(['--yes', '@wot-ui/ci@1.2.3', 'doctor'])
   })
 
-  it('没有显式版本时跟随精确的 action ref', async () => {
+  it.each(['v0.5.0', '0.5.0', 'v0.5.1-beta.1'])('没有显式版本时跟随 composite 注入的 action ref: %s', async (ref) => {
     const cwd = await createProject()
     const binDir = path.join(cwd, 'bin')
     await mkdir(binDir, { recursive: true })
@@ -140,7 +145,8 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     execFileSync('bash', [scriptPath], {
       env: {
         ...process.env,
-        GITHUB_ACTION_REF: 'v0.4.1',
+        GITHUB_ACTION_REF: '',
+        WOTCI_ACTION_REF: ref,
         INPUT_COMMAND: 'doctor',
         INPUT_PACKAGE_VERSION: '',
         INPUT_WORKING_DIRECTORY: cwd,
@@ -150,10 +156,10 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     })
 
     const args = (await readFile(outputFile, 'utf8')).trim().split('\n')
-    expect(args).toEqual(['--yes', '@wot-ui/ci@0.4.1', 'doctor'])
+    expect(args).toEqual(['--yes', `@wot-ui/ci@${ref.replace(/^v/, '')}`, 'doctor'])
   })
 
-  it('浮动 action ref 回落到 latest', async () => {
+  it.each(['v0', 'main', 'b202e082b134bc905ab11d96cceadb97a11aa5de', ''])('非版本 action ref 回落到 latest: %s', async (ref) => {
     const cwd = await createProject()
     const binDir = path.join(cwd, 'bin')
     await mkdir(binDir, { recursive: true })
@@ -163,7 +169,7 @@ describe.skipIf(process.platform === 'win32')('github-action.sh', () => {
     execFileSync('bash', [scriptPath], {
       env: {
         ...process.env,
-        GITHUB_ACTION_REF: 'v0',
+        WOTCI_ACTION_REF: ref,
         INPUT_COMMAND: 'doctor',
         INPUT_PACKAGE_VERSION: '',
         INPUT_WORKING_DIRECTORY: cwd,

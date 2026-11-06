@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { parseOptions, validatePlatformOptions } from './github-action-options.mjs'
 
 // This adapter ships with the action, not the npm package. Its plain CJS output
 // also works with existing CLI releases and projects without @wot-ui/ci installed.
 const env = process.env
-const directInputs = ['PROJECT_PATH', 'APPID', 'PRIVATE_KEY', 'PRIVATE_KEY_PATH', 'UPLOAD_VERSION', 'UPLOAD_DESC', 'ROBOT', 'TOOL_ID', 'TOKEN']
+const directInputs = ['PROJECT_PATH', 'APPID', 'PRIVATE_KEY', 'PRIVATE_KEY_PATH', 'UPLOAD_VERSION', 'UPLOAD_DESC', 'ROBOT', 'TOOL_ID', 'TOKEN', 'SETTING', 'PREVIEW', 'PLATFORM_OPTIONS']
 const hasValue = value => typeof value === 'string' && value.trim().length > 0
 const input = key => hasValue(env[`INPUT_${key}`]) ? env[`INPUT_${key}`] : undefined
 const variable = key => hasValue(env[key]) ? env[key] : undefined
@@ -60,7 +61,7 @@ function prepareConfig(directory) {
   const platform = input('PLATFORM')?.trim() === 'dd' ? 'dingtalk' : input('PLATFORM')?.trim()
   if (!explicitDirect) {
     const prefix = platform?.toUpperCase()
-    const hasPlatformEnv = prefix && ['APPID', 'PROJECT_PATH', 'PRIVATE_KEY', 'PRIVATE_KEY_PATH', 'TOKEN', 'TOOL_ID', 'ROBOT']
+    const hasPlatformEnv = prefix && ['APPID', 'PROJECT_PATH', 'PRIVATE_KEY', 'PRIVATE_KEY_PATH', 'TOKEN', 'TOOL_ID', 'ROBOT', 'SETTING', 'PREVIEW', 'OPTIONS']
       .some(key => variable(`${prefix}_${key}`))
     if (!hasPlatformEnv)
       return
@@ -76,11 +77,23 @@ function prepareConfig(directory) {
 
   const prefix = platform.toUpperCase()
   const platformValue = key => choose(key, `${prefix}_${key}`)
+  const options = parseOptions(choose('PLATFORM_OPTIONS', `${prefix}_OPTIONS`), 'platform-options') ?? {}
+  // Validate even fields later overridden by dedicated inputs: typos and
+  // credential fields in the options object should never be silently ignored.
+  validatePlatformOptions(platform, options)
+  const setting = parseOptions(platformValue('SETTING'), 'setting')
+  const preview = parseOptions(platformValue('PREVIEW'), 'preview')
+  if (setting !== undefined)
+    options.setting = setting
+  if (preview !== undefined)
+    options.preview = preview
+  validatePlatformOptions(platform, options)
   const config = {
     version: choose('UPLOAD_VERSION', 'WOTCI_VERSION'),
     desc: choose('UPLOAD_DESC', 'WOTCI_DESC'),
   }
   const target = {
+    ...options,
     appid: requireValue(platformValue('APPID'), `appid / ${prefix}_APPID`).trim(),
     projectPath: requireValue(platformValue('PROJECT_PATH'), `project-path / ${prefix}_PROJECT_PATH`).trim(),
   }
@@ -107,11 +120,11 @@ function prepareConfig(directory) {
       fail(`缺少 private-key / private-key-path，或 ${prefix}_PRIVATE_KEY / ${prefix}_PRIVATE_KEY_PATH`)
 
     if (platform === 'weixin') {
-      const robot = platformValue('ROBOT') ?? '1'
+      const robot = platformValue('ROBOT') ?? String(target.robot ?? 1)
       if (!/^\d+$/.test(robot) || Number(robot) < 1 || Number(robot) > 30)
         fail('robot / WEIXIN_ROBOT 必须是 1 到 30 的整数')
       target.robot = Number(robot)
-      target.setting = { useProjectConfig: true }
+      target.setting = { useProjectConfig: true, ...target.setting }
     }
     else {
       target.toolId = requireValue(platformValue('TOOL_ID'), 'tool-id / ALIPAY_TOOL_ID').trim()

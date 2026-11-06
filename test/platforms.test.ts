@@ -1,7 +1,10 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import process from 'node:process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { loadConfig } from '../src/config'
 
 const mocks = vi.hoisted(() => ({
   WeixinProject: vi.fn(),
@@ -59,6 +62,7 @@ vi.mock('dingtalk-miniapp-opensdk', () => ({
 }))
 
 const {
+  previewAlipay,
   previewWeixin,
   upload,
   uploadAlipay,
@@ -131,6 +135,121 @@ function weixinConfig(overrides: Record<string, unknown> = {}) {
     },
   }
 }
+
+async function actionConfig(cwd: string, inputs: Record<string, string>) {
+  const temporary = path.join(cwd, 'action temporary')
+  await mkdir(temporary)
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(?:INPUT_|WOTCI_|WEIXIN_|ALIPAY_|DINGTALK_)/.test(key)))
+  const configFile = execFileSync(process.execPath, [path.resolve(import.meta.dirname, '../scripts/github-action-config.mjs'), temporary], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...inherited, ...inputs },
+  }).trim()
+  return (await loadConfig({ configFile, cwd })).config
+}
+
+describe('action platform options SDK integration', () => {
+  it('支付宝 SDK 原始异常经过真实批量 CLI 后仍显示 cause', async () => {
+    const { cwd } = await createFixture()
+    const config = await actionConfig(cwd, {
+      INPUT_PLATFORM: 'alipay',
+      INPUT_APPID: 'alipay-test',
+      INPUT_PROJECT_PATH: 'dist/alipay',
+      INPUT_PRIVATE_KEY_PATH: 'keys/alipay.key',
+      INPUT_TOOL_ID: 'tool-test',
+      INPUT_UPLOAD_VERSION: '2.0.0',
+    })
+    const configFile = path.join(cwd, 'wotci.config.cjs')
+    await writeFile(configFile, `module.exports = ${JSON.stringify(config)}`)
+    mocks.alipayGetUploadedVersion.mockRejectedValueOnce(new Error('INVALID_SIGNATURE', { cause: new Error('synthetic SDK detail') }))
+    const stdout: string[] = []
+    const stderr: string[] = []
+    const { runCli } = await import('../src/cli')
+    const exitCode = await runCli(['upload', '-p', 'alipay', '--config', configFile, '--summary', 'summary.md'], {
+      cwd,
+      stdout: text => stdout.push(text),
+      stderr: text => stderr.push(text),
+    })
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('[失败] [alipay] 支付宝小程序上传失败')
+    expect(stderr).toContain('[失败] [alipay] 原因 1: INVALID_SIGNATURE')
+    expect(stderr).toContain('[失败] [alipay] 原因 2: synthetic SDK detail')
+    expect(stdout.some(line => line.includes('[成功]'))).toBe(false)
+    expect(mocks.alipayUpload).not.toHaveBeenCalled()
+  })
+
+  it('微信扩展配置经过真实配置加载后传到上传与预览 SDK', async () => {
+    const { cwd } = await createFixture()
+    const config = await actionConfig(cwd, {
+      INPUT_PLATFORM: 'weixin',
+      INPUT_APPID: 'wx123',
+      INPUT_PROJECT_PATH: 'dist/weixin',
+      INPUT_PRIVATE_KEY_PATH: 'keys/weixin.key',
+      INPUT_UPLOAD_VERSION: '1.0.0',
+      INPUT_PLATFORM_OPTIONS: '{"type":"miniProgramPlugin","ignores":["test/**"]}',
+      INPUT_SETTING: '{"minifyJS":false,"minifyWXML":true,"es6":true}',
+      INPUT_PREVIEW: '{"qrcodeFormat":"terminal","pagePath":"pages/index","searchQuery":"x=1","threads":2,"setting":{"minifyJS":true}}',
+    })
+    await uploadWeixin(config, { cwd })
+    expect(mocks.WeixinProject).toHaveBeenCalledWith(expect.objectContaining({ type: 'miniProgramPlugin', ignores: ['test/**'] }))
+    expect(mocks.weixinUpload).toHaveBeenCalledWith(expect.objectContaining({
+      setting: { useProjectConfig: true, minifyJS: false, minifyWXML: true, es6: true },
+    }))
+    await previewWeixin(config, { cwd })
+    expect(mocks.weixinPreview).toHaveBeenCalledWith(expect.objectContaining({
+      qrcodeFormat: 'terminal',
+      pagePath: 'pages/index',
+      searchQuery: 'x=1',
+      threads: 2,
+      setting: { minifyJS: true },
+    }))
+  })
+
+  it.each([true, false])('支付宝参数进入上传及预览 SDK，autoincrement=%s', async (autoincrement) => {
+    const { cwd } = await createFixture()
+    const previewOptions = { page: 'pages/index', pageQuery: 'page=1', query: 'from=ci', scene: '1001', autoPush: false, ignoreHttpDomainCheck: true, ignoreWebViewDomainCheck: false }
+    const config = await actionConfig(cwd, {
+      INPUT_PLATFORM: 'alipay',
+      INPUT_APPID: 'alipay-test',
+      INPUT_PROJECT_PATH: 'dist/alipay',
+      INPUT_PRIVATE_KEY_PATH: 'keys/alipay.key',
+      INPUT_TOOL_ID: 'tool-test',
+      INPUT_UPLOAD_VERSION: '2.0.0',
+      INPUT_PLATFORM_OPTIONS: JSON.stringify({ clientType: 'amap', autoincrement }),
+      INPUT_PREVIEW: JSON.stringify(previewOptions),
+    })
+    await uploadAlipay(config, { cwd })
+    expect(mocks.alipayUpload).toHaveBeenCalledWith(expect.objectContaining({
+      appId: 'alipay-test',
+      clientType: 'amap',
+      version: autoincrement ? '' : '2.0.0',
+      experience: true,
+    }))
+    expect(mocks.alipayGetUploadedVersion).toHaveBeenCalledTimes(autoincrement ? 0 : 1)
+    mocks.alipayPreview.mockResolvedValue({ qrcodeUrl: 'https://example.com/preview.png' })
+    await previewAlipay(config, { cwd })
+    expect(mocks.alipayPreview).toHaveBeenCalledWith(expect.objectContaining({ ...previewOptions, clientType: 'amap' }))
+  })
+
+  it.each([true, false])('钉钉自动递增控制 SDK 上传版本，autoincrement=%s', async (autoincrement) => {
+    const { cwd } = await createFixture()
+    const config = await actionConfig(cwd, {
+      INPUT_PLATFORM: 'dingtalk',
+      INPUT_APPID: 'ding-test',
+      INPUT_PROJECT_PATH: 'dist/dingtalk',
+      INPUT_TOKEN: 'synthetic-token',
+      INPUT_UPLOAD_VERSION: '2.0.0',
+      INPUT_PLATFORM_OPTIONS: JSON.stringify({ projectType: 'dingtalk-biz', autoincrement }),
+    })
+    await uploadDingTalk(config, { cwd })
+    expect(mocks.dingtalkMiniUpload).toHaveBeenCalledWith(expect.objectContaining({
+      miniAppId: 'ding-test',
+      packageVersion: autoincrement ? '' : '2.0.0',
+      project: path.join(cwd, 'dist/dingtalk'),
+    }))
+    expect(mocks.dingtalkMiniUpload.mock.calls[0][0]).not.toHaveProperty('projectType')
+  })
+})
 
 describe('uploadWeixin', () => {
   it('组装 Project 与 upload 参数并输出包体积', async () => {

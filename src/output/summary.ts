@@ -1,7 +1,7 @@
 import type {
-  BatchItemResult,
   BatchResult,
   PlatformPlan,
+  SerializedError,
   WeixinBuildNpmResult,
   WeixinDiagnosticResult,
   WeixinQualityResult,
@@ -28,10 +28,10 @@ export function renderBatchSummary(
     lines.push('| 平台 | 结果 | 校验 | 耗时 |', '| --- | --- | --- | --- |')
     for (const item of result.results) {
       const plan = item.result as PlatformPlan | undefined
-      const checks = plan?.checks
+      const checks = formatBatchError(item.error) ?? (plan?.checks
         ?.filter(check => !check.ok)
         .map(check => check.message ?? check.name)
-        .join('；') || '通过'
+        .join('；') || '通过')
       lines.push(`| ${escapeCell(item.platform)} | ${item.ok ? '✅' : '❌'} | ${escapeCell(checks)} | ${formatDuration(item.durationMs)} |`)
     }
   }
@@ -46,7 +46,7 @@ export function renderBatchSummary(
         value?.sizes?.total ? formatSize(value.sizes.total) : '-',
         value?.sizes?.main ? formatSize(value.sizes.main) : '-',
         formatDuration(item.durationMs),
-        escapeCell(item.error?.message ?? value?.message ?? ''),
+        escapeCell(formatBatchError(item.error) ?? value?.message ?? ''),
       ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
     }
   }
@@ -60,7 +60,7 @@ export function renderBatchSummary(
         item.ok ? '✅' : '❌',
         escapeCell(qr),
         formatDuration(item.durationMs),
-        escapeCell(item.error?.message ?? value?.message ?? ''),
+        escapeCell(formatBatchError(item.error) ?? value?.message ?? ''),
       ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'))
     }
   }
@@ -121,6 +121,10 @@ export async function writeBatchSummary(
   await mkdir(path.dirname(filePath), { recursive: true })
   await writeFile(filePath, content, 'utf8')
   return filePath
+}
+
+function formatBatchError(error: SerializedError | undefined): string | undefined {
+  return error ? [error.message, ...error.cause ?? []].join('\n') : undefined
 }
 
 function formatSize(size: number): string {

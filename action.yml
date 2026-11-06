@@ -55,6 +55,18 @@ inputs:
     description: DingTalk API token, normally from secrets. Falls back to DINGTALK_TOKEN
     required: false
     default: ''
+  setting:
+    description: WeChat compiler settings as a JSON object (e.g. {"minifyJS":true}). Falls back to WEIXIN_SETTING
+    required: false
+    default: ''
+  preview:
+    description: Platform preview configuration as a JSON object. Falls back to WEIXIN_PREVIEW or ALIPAY_PREVIEW
+    required: false
+    default: ''
+  platform-options:
+    description: Optional platform configuration as a JSON object, excluding credentials and projectPath. Falls back to WEIXIN_OPTIONS, ALIPAY_OPTIONS or DINGTALK_OPTIONS
+    required: false
+    default: ''
   working-directory:
     description: Directory to run the CLI in
     required: false
@@ -126,6 +138,7 @@ runs:
     - name: Run wot-ui-ci
       shell: bash
       env:
+        WOTCI_ACTION_REF: ${{ github.action_ref }}
         INPUT_COMMAND: ${{ inputs.command }}
         INPUT_PLATFORM: ${{ inputs.platform }}
         INPUT_CONFIG: ${{ inputs.config }}
@@ -138,6 +151,9 @@ runs:
         INPUT_ROBOT: ${{ inputs.robot }}
         INPUT_TOOL_ID: ${{ inputs.tool-id }}
         INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_SETTING: ${{ inputs.setting }}
+        INPUT_PREVIEW: ${{ inputs.preview }}
+        INPUT_PLATFORM_OPTIONS: ${{ inputs.platform-options }}
         INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         INPUT_SUMMARY: ${{ inputs.summary }}
         INPUT_JSON: ${{ inputs.json }}

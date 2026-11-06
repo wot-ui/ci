@@ -385,14 +385,21 @@ export async function runCli(argv: string[] = process.argv.slice(2), options: Ru
           const message = item.error?.message
             ?? (item.result as { message?: string } | undefined)?.message
             ?? (item.ok ? '成功' : '失败')
-          if (item.ok)
+          if (item.ok) {
             logger.success(`[${item.platform}] ${message}`)
-          else
+          }
+          else {
             logger.error(`[${item.platform}] ${message}`)
+            for (const cause of item.error?.cause ?? [])
+              logger.error(`[${item.platform}] ${cause}`)
+          }
         }
         if (result.dryRun)
           logger.log(`dry-run：共 ${result.results.length} 个平台`)
-        logger.success(result.ok ? `${command === 'upload' ? '上传' : '预览'}完成` : `${command === 'upload' ? '上传' : '预览'}失败`)
+        if (result.ok)
+          logger.success(`${command === 'upload' ? '上传' : '预览'}完成`)
+        else
+          logger.error(`${command === 'upload' ? '上传' : '预览'}失败`)
       }
 
       return result.ok ? 0 : 1
