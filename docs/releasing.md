@@ -14,15 +14,11 @@ pnpm release
 2. 通过 OIDC trusted publishing 发布 npm 包。
 3. 按明确的 tag 区间生成并发布 GitHub Release。
 
-CLI 发布无需等待 Marketplace 操作。`changelogithub.config.json` 不再设置 `draft: true`；旧 `Marketplace Listing` 工作流已移除，不再移动旧 Action 的 `v0` 标签。
+CLI 发布无需等待 Marketplace 操作。
 
-## 旧 Action 兼容
+## 与独立 Action 的关系
 
-- `wot-ui/ci@v0` 保留在拆仓前的 `v0.5.3` 提交；既有精确标签不重写。
-- `main` 已移除 `action.yml`、Action 专用脚本和测试。历史标签仍保存完整实现，旧调用不受影响；`wot-ui/ci@main` 不再作为 Action 入口。
-- 本仓库工作流调用独立 Action，并通过本地 CLI 入口绑定本次构建的产物，继续验证尚未发布的核心版本。
-- 旧入口的浮动引用默认选择 npm `latest`；需要固定 CLI 时仍须指定 `package-version` 或锁定项目本地依赖。
-- 原 Marketplace 条目 `wot-ui-ci` 已下架，移除核心仓库首页的 Action 推广提示；历史标签和 Release 保留，既有标签引用仍可使用。新入口使用 `wot-ui/ci-action@v1`，Marketplace 条目为 `wot-ui-ci-action`。
+本仓库工作流调用 `wot-ui/ci-action@v2.0.0`，通过本地 CLI 入口绑定本次构建的产物，验证尚未发布的核心版本。
 
 独立 Action 的默认 CLI 版本由其 `package.json.wotciVersion` 明确记录；核心包更新不会自动修改 Action 默认版本。
 

@@ -14,5 +14,3 @@ GitHub Action 的完整参数文档已移到 [wot-ui/ci-action README](https://g
 | 保存预览二维码 | `qrcode-output` |
 
 字段默认值、环境变量优先级和支持范围以独立仓库的参数文档为准。CLI 平台配置继续在 [配置项目](configuration.md) 中维护。
-
-旧入口和新入口的版本选择规则不同，迁移前请阅读 [迁移指南](https://github.com/wot-ui/ci-action#迁移到-v2)。
