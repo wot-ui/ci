@@ -856,21 +856,25 @@ wotci ide preview -p weixin --qr-output dist/ide-preview.png
 
 ### GitHub Action
 
-仓库根目录提供 composite action：
+仓库根目录提供 composite action。上传可以直接通过 `with` / `env` 配置，无需 `wotci.config.ts`，也不需要为 Action 单独安装 `@wot-ui/ci`。构建仍由项目自己的命令完成。
+
+> 无配置文件模式是本分支新增能力，需使用包含此改动的 Action ref；发布并更新 `v0` 后，下方示例才可直接使用 `@v0`。
+
+#### 无配置文件上传
+
+下面以微信为例，将私钥的完整多行文本存入 `WEIXIN_PRIVATE_KEY` Secret，Action 会临时写入权限为 `600` 的文件，执行结束后清理：
 
 ```yaml
-name: Preview
+name: Upload
 
 on:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
-  preview:
+  upload:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -884,16 +888,69 @@ jobs:
 
       - uses: wot-ui/ci@v0
         with:
-          command: preview
           platform: weixin
-          config: wotci.config.ts
-          summary: ${{ env.GITHUB_STEP_SUMMARY }}
+          project-path: dist/build/mp-weixin
+          private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+          # 上传版本默认读取 package.json，也可设置 upload-version
         env:
           WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
-          WEIXIN_PRIVATE_KEY_PATH: keys/weixin.private.key
 ```
 
-发布：
+也可以全部使用环境变量（无配置文件时生效）：
+
+```yaml
+- uses: wot-ui/ci@v0
+  env:
+    WOTCI_PLATFORM: weixin
+    WOTCI_VERSION: 1.2.3
+    WEIXIN_PROJECT_PATH: dist/build/mp-weixin
+    WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
+    WEIXIN_PRIVATE_KEY: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+```
+
+若已有落盘的私钥，可用 `private-key-path` / `WEIXIN_PRIVATE_KEY_PATH` 替代 `private-key` / `WEIXIN_PRIVATE_KEY`。路径相对 `working-directory` 解析，文件必须提前存在；Action 不会修改或删除调用者提供的私钥文件。
+
+无配置文件模式支持微信、支付宝、钉钉的单平台上传，以及平台原有的 `preview` / `doctor` 能力（钉钉不支持预览）。支付宝额外需要 `tool-id` / `ALIPAY_TOOL_ID`，钉钉使用 `token` / `DINGTALK_TOKEN`，不传私钥。多平台使用多个步骤、GitHub Actions 矩阵或配置文件；此模式不会自动构建产物。
+
+| `with` 输入 | `env` 回退 | 说明 |
+| --- | --- | --- |
+| `platform` | `WOTCI_PLATFORM` | 单个平台：`weixin` / `alipay` / `dingtalk` |
+| `project-path` | `WEIXIN_PROJECT_PATH` / `ALIPAY_PROJECT_PATH` / `DINGTALK_PROJECT_PATH` | 必填，构建产物目录 |
+| `appid` | `WEIXIN_APPID` / `ALIPAY_APPID` / `DINGTALK_APPID` | 必填，平台应用 ID |
+| `private-key` | `WEIXIN_PRIVATE_KEY` / `ALIPAY_PRIVATE_KEY` | 私钥原文，与私钥路径二选一 |
+| `private-key-path` | `WEIXIN_PRIVATE_KEY_PATH` / `ALIPAY_PRIVATE_KEY_PATH` | 已存在的私钥文件路径 |
+| `upload-version` | `WOTCI_VERSION` | 上传版本，未传则读取 `package.json` 的 `version` |
+| `upload-desc` | `WOTCI_DESC` | 上传描述，未传则读取 `package.json` 的 `description` |
+| `robot` | `WEIXIN_ROBOT` | 微信机器人编号，1–30，默认 1 |
+| `tool-id` | `ALIPAY_TOOL_ID` | 支付宝必填 |
+| `token` | `DINGTALK_TOKEN` | 钉钉必填 |
+
+配置方式与优先级：
+
+- 显式 `config` 保留原配置文件行为；不能同时传上表中除 `platform` 外的无配置文件 inputs。配置文件可以照常读取 `env`。
+- 不传 `config`，但传了任一无配置文件 input 时，直接使用 Action 参数，不加载项目里的配置文件。
+- 只传 `env` 时，优先保留已有的配置文件自动发现逻辑（含 `package.json` 和 `.minicirc`）；项目没有配置时才使用环境变量生成配置。
+- 无配置文件模式中，非空 `with` 值优先于对应 `env`；显式提供任一种私钥 input 后，不再读取环境变量里的两种私钥字段。选定来源中的私钥文本和私钥路径不能同时提供。
+- `upload-version` 设置上传版本；原有 `version` input 仍只用于体验版和版本删除命令。
+- 微信默认使用 `miniProgram` 项目类型及 `setting.useProjectConfig: true`；支付宝、钉钉默认关闭平台版本自动递增。插件、小游戏、自定义编译选项、版本策略等高级配置继续使用配置文件。
+- Action 生成的配置与私钥放在临时目录，正常结束或 CLI 报错时均清理。不会把私钥或 token 拼入命令行日志。
+
+#### 复用配置文件
+
+已有项目可以继续显式选择配置文件，或省略 `config` 让 CLI 自动发现：
+
+```yaml
+- uses: wot-ui/ci@v0
+  with:
+    command: upload
+    platform: weixin
+    config: wotci.config.ts
+  env:
+    WEIXIN_APPID: ${{ secrets.WEIXIN_APPID }}
+    WEIXIN_PRIVATE_KEY_PATH: keys/weixin.private.key
+```
+
+使用 `release` 编排多平台发布时，仍在项目配置文件中维护发布规则：
 
 ```yaml
 - uses: wot-ui/ci@v0
@@ -910,7 +967,7 @@ jobs:
 | --- | --- |
 | `command` | `upload`（默认）、`preview`、`release`、`doctor`、`version latest` 等 |
 | `platform` | 逗号分隔平台，如 `weixin,alipay` |
-| `config` | 配置文件路径 |
+| `config` | 可选配置文件路径；不传时支持无配置文件模式或自动发现 |
 | `working-directory` | 执行目录，默认 `.` |
 | `summary` | `$GITHUB_STEP_SUMMARY` 或指定 Markdown 文件 |
 | `json` / `dry-run` / `network` / `yes` | 透传对应 CLI 参数 |
@@ -1273,6 +1330,8 @@ pnpm verify:capabilities
 测试覆盖率由 vitest 统计，并对 statements / branches / functions / lines 设置 95% 阈值；CI 在 Linux Node 24 执行覆盖率门禁并存档报告，其余组合运行常规测试。`src/bin.ts` 是进程入口，依赖 `process.exit`，不纳入覆盖率统计。运行时验证覆盖 Linux Node 20/22/24/26 与 Windows/macOS Node 20/24，实际通过证据见 [支持矩阵](docs/support-matrix.md)。
 
 开发约定、提交信息规范与 PR 流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+文档网站位于 `apps/website`，使用 Next.js App Router 从本 README 与 `docs/` 预渲染页面。使用 `pnpm site:dev` 本地开发，`pnpm site:build` 输出 `.next`；EdgeOne 选择 Next 预设、根目录 `apps/website`、构建命令 `pnpm build:next`。维护和部署说明见 [网站 README](apps/website/README.md)。
 
 ## 路线图
 

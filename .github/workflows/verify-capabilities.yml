@@ -196,3 +196,61 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Prepare config-free fixture
+        run: |
+          rm "$RUNNER_TEMP/action-fixture/wotci.config.mjs"
+          {
+            echo 'ACTION_TEST_PRIVATE_KEY<<WOTCI_TEST_KEY'
+            cat "$RUNNER_TEMP/action-fixture/keys/weixin.private.key"
+            echo 'WOTCI_TEST_KEY'
+          } >> "$GITHUB_ENV"
+
+      - name: Config-free WeChat upload via inputs
+        uses: ./
+        with:
+          platform: weixin
+          working-directory: ${{ runner.temp }}/action-fixture
+          project-path: dist/build/mp-weixin
+          appid: wx0000000000000000
+          private-key: ${{ env.ACTION_TEST_PRIVATE_KEY }}
+          upload-version: 0.0.2
+          dry-run: 'true'
+          summary: ${{ runner.temp }}/direct-weixin.md
+
+      - name: Config-free Alipay upload via env
+        uses: ./
+        with:
+          working-directory: ${{ runner.temp }}/action-fixture
+          dry-run: 'true'
+          summary: ${{ runner.temp }}/direct-alipay.md
+        env:
+          WOTCI_PLATFORM: alipay
+          WOTCI_VERSION: 0.0.2
+          ALIPAY_APPID: '2021000000000000'
+          ALIPAY_PROJECT_PATH: dist/build/mp-alipay
+          ALIPAY_TOOL_ID: wotci-action-fixture
+          ALIPAY_PRIVATE_KEY_PATH: keys/weixin.private.key
+
+      - name: Config-free DingTalk upload via inputs
+        uses: ./
+        with:
+          platform: dingtalk
+          working-directory: ${{ runner.temp }}/action-fixture
+          project-path: dist/build/mp-alipay
+          appid: test-dingtalk-app
+          token: test-only-dingtalk-token
+          upload-version: 0.0.2
+          dry-run: 'true'
+          summary: ${{ runner.temp }}/direct-dingtalk.md
+
+      - name: Assert config-free results and cleanup
+        run: |
+          set -euo pipefail
+          for platform in weixin alipay dingtalk; do
+            grep -q "| $platform | ✅ |" "$RUNNER_TEMP/direct-$platform.md"
+          done
+          if compgen -G "$RUNNER_TEMP/wotci-action.*" > /dev/null; then
+            echo '::error::Action 临时凭据目录没有清理'
+            exit 1
+          fi
