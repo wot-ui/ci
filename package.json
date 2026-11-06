@@ -54,6 +54,8 @@
     "verify:release": "node scripts/verify-release.mjs",
     "typecheck": "tsc",
     "typecheck:all": "pnpm typecheck && pnpm typecheck:playground",
+    "docs:action:sync": "node scripts/sync-action-docs.mjs",
+    "docs:action:check": "node scripts/sync-action-docs.mjs --check",
     "site:dev": "pnpm --dir apps/website dev",
     "site:build": "pnpm --dir apps/website build",
     "site:test": "pnpm --dir apps/website test",

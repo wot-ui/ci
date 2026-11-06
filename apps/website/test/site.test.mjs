@@ -40,7 +40,12 @@ test('canonical documents retain links, anchors and search identifiers at root a
     }
     assert.ok(documents.some(page => page.searchText.includes('WEIXIN_APPID')))
     assert.match(documents.find(page => page.slug === 'release').html, /versionResolution/)
-    assert.match(documents.find(page => page.slug === 'integration').html, /private-key/)
+    const integration = documents.find(page => page.slug === 'integration')
+    assert.match(integration.html, /AI 一键接入/)
+    assert.match(integration.html, /data-copy-code/)
+    assert.match(integration.html, /minifyWXSS/)
+    assert.match(integration.html, /GITHUB_STEP_SUMMARY/)
+    assert.ok(documents.find(page => page.slug === 'action-reference').toc.some(item => item.id === 'setting'))
     assert.match(documents.find(page => page.slug === 'action-reference').html, /platform-options/)
     assert.match(documents.find(page => page.slug === 'vite').html, /wotciPlugin/)
   }

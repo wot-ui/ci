@@ -14,15 +14,14 @@ pnpm exec wotci upload -p weixin --dry-run
 # 确认计划，再执行上传
 pnpm exec wotci upload -p weixin`
 
-const actions = `# 所选 Action ref 需包含下方使用的 inputs
-# 项目构建完成后，无需 wotci.config.ts
-- uses: wot-ui/ci-action@v1
+const actions = `# 项目构建完成后，无需 wotci.config.ts
+- uses: wot-ui/ci-action@v2
   with:
     platform: weixin
     project-path: dist/build/mp-weixin
+    appid: \${{ secrets.WEIXIN_APPID }}
     private-key: \${{ secrets.WEIXIN_PRIVATE_KEY }}
-  env:
-    WEIXIN_APPID: \${{ secrets.WEIXIN_APPID }}
+    setting: '{"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
 # 上传版本默认读取 package.json`
 
 const api = `import { uploadMany } from '@wot-ui/ci'

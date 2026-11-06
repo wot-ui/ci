@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/website/**'
       - 'docs/**'
+      - scripts/sync-action-docs.mjs
       - README.md
       - package.json
       - pnpm-lock.yaml
@@ -15,6 +16,7 @@ on:
     paths:
       - 'apps/website/**'
       - 'docs/**'
+      - scripts/sync-action-docs.mjs
       - README.md
       - package.json
       - pnpm-lock.yaml
@@ -40,6 +42,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm docs:action:check
       - run: pnpm site:test
       - run: pnpm site:build
       - run: pnpm site:typecheck

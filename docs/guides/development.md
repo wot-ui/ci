@@ -26,3 +26,9 @@ pnpm verify:capabilities
 ```sh
 pnpm verify:capabilities
 ```
+
+## 同步 Action 文档
+
+Action 用法与参数统一在 [ci-action README](https://github.com/wot-ui/ci-action#readme) 维护。更新后执行 `pnpm docs:action:sync`，会生成本站的 GitHub Action 和 Action 参数参考两页，并修正跨页锚点；提交生成文件即可。不要直接修改这两页。
+
+`pnpm docs:action:check` 对照独立仓库最新 README 检查一致性，Website CI 会运行该检查；生成页面参与站内目录、搜索和链接验证。网站运行和本地构建仍读取仓库内的 Markdown，无需在线获取 README。离线验证可使用 `pnpm docs:action:check --source /path/to/ci-action/README.md`。

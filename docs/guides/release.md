@@ -156,6 +156,6 @@ permissions:
 - PR 编号：`GITHUB_EVENT_PATH` 中的 `pull_request.number`，或 `GITHUB_REF=refs/pull/<n>/merge`
 - 可选 `GITHUB_API_URL`（GitHub Enterprise）
 
-`GITHUB_TOKEN` / `GH_TOKEN` 需由 workflow 显式注入步骤环境，完整 Action 步骤见 [复用配置文件](github-action.md#复用配置文件)。没有 token 或 PR 上下文时，默认的自动评论会跳过。
+`GITHUB_TOKEN` / `GH_TOKEN` 需由 workflow 显式注入步骤环境，发布编排请在普通 `run` 步骤执行 `pnpm exec wotci release`；独立 Action 的命令范围见 [接入指南](github-action.md)。没有 token 或 PR 上下文时，默认的自动评论会跳过。
 
 评论内容包含平台结果、版本、包体积、耗时、构建命令、commit 和运行链接；同一 PR 使用 marker 更新已有评论，不会重复刷屏。
