@@ -187,13 +187,13 @@ describe('action platform options SDK integration', () => {
       INPUT_PRIVATE_KEY_PATH: 'keys/weixin.key',
       INPUT_UPLOAD_VERSION: '1.0.0',
       INPUT_PLATFORM_OPTIONS: '{"type":"miniProgramPlugin","ignores":["test/**"]}',
-      INPUT_SETTING: '{"minifyJS":false,"minifyWXML":true,"es6":true}',
+      INPUT_SETTING: '{"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true,"minify":true}',
       INPUT_PREVIEW: '{"qrcodeFormat":"terminal","pagePath":"pages/index","searchQuery":"x=1","threads":2,"setting":{"minifyJS":true}}',
     })
     await uploadWeixin(config, { cwd })
     expect(mocks.WeixinProject).toHaveBeenCalledWith(expect.objectContaining({ type: 'miniProgramPlugin', ignores: ['test/**'] }))
     expect(mocks.weixinUpload).toHaveBeenCalledWith(expect.objectContaining({
-      setting: { useProjectConfig: true, minifyJS: false, minifyWXML: true, es6: true },
+      setting: { useProjectConfig: true, minifyJS: true, minifyWXML: true, minifyWXSS: true, minify: true },
     }))
     await previewWeixin(config, { cwd })
     expect(mocks.weixinPreview).toHaveBeenCalledWith(expect.objectContaining({
