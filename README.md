@@ -71,6 +71,7 @@ Action 已独立到 [wot-ui/ci-action](https://github.com/wot-ui/ci-action)。�
     project-path: dist/build/mp-weixin
     appid: ${{ secrets.WEIXIN_APPID }}
     private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    setting: '{"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
 ```
 
 上传版本默认读取 `package.json.version`。支付宝额外传 `tool-id`；钉钉使用 `token`，不传私钥。完整工作流、预览与结果归档见 [Action 指南](https://github.com/wot-ui/ci/blob/main/docs/guides/github-action.md)，全部 inputs 见 [参数参考](https://github.com/wot-ui/ci/blob/main/docs/guides/action-reference.md)。

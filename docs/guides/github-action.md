@@ -2,6 +2,8 @@
 
 GitHub Action 已独立维护在 [wot-ui/ci-action](https://github.com/wot-ui/ci-action)。本仓库继续提供 CLI、JS API、Vite 插件与平台实现。
 
+也可复制 [AI 一键接入提示词](https://github.com/wot-ui/ci-action#ai-一键接入)，让 AI 根据项目生成工作流。
+
 ## 快速接入
 
 在 workflow 完成构建后添加：
@@ -13,6 +15,7 @@ GitHub Action 已独立维护在 [wot-ui/ci-action](https://github.com/wot-ui/ci
     project-path: dist/build/mp-weixin
     appid: ${{ secrets.WEIXIN_APPID }}
     private-key: ${{ secrets.WEIXIN_PRIVATE_KEY }}
+    setting: '{"useProjectConfig":true,"minifyJS":true,"minifyWXML":true,"minifyWXSS":true}'
 ```
 
 产物目录按实际项目调整，上传版本默认读取项目的 `package.json.version`。微信上传前需在公众平台生成上传私钥并配置 CI IP 白名单。

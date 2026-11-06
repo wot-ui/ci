@@ -40,6 +40,9 @@ export default defineConfig(({ env, packageJson }) => ({
         robot: resolveWeixinRobot(env.WEIXIN_ROBOT),
         setting: {
           useProjectConfig: true,
+          minifyJS: true,
+          minifyWXML: true,
+          minifyWXSS: true,
         },
       }
     : undefined,
