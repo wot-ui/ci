@@ -1331,7 +1331,7 @@ pnpm verify:capabilities
 
 开发约定、提交信息规范与 PR 流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-文档网站位于 `apps/website`，从本 README 与 `docs/` 构建。使用 `pnpm site:dev` 本地预览，`pnpm site:build` 输出静态页面；维护和部署说明见 [网站 README](apps/website/README.md)。
+文档网站位于 `apps/website`，使用 Next.js App Router 从本 README 与 `docs/` 预渲染页面。使用 `pnpm site:dev` 本地开发，`pnpm site:build` 输出 `.next`；EdgeOne 选择 Next 预设、根目录 `apps/website`、构建命令 `pnpm build:next`。维护和部署说明见 [网站 README](apps/website/README.md)。
 
 ## 路线图
 

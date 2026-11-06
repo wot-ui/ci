@@ -2,13 +2,29 @@
   "name": "@wot-ui/ci-website",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "build": "node scripts/build.mjs",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 4173",
+    "build": "pnpm build:next",
+    "build:next": "next build --webpack && node scripts/cleanup-next-output.mjs",
+    "start": "next start --hostname 127.0.0.1 --port 4173",
     "test": "node --test test/*.test.mjs",
-    "preview": "node scripts/serve.mjs"
+    "test:build": "node scripts/verify-next-build.mjs",
+    "typecheck": "tsc --noEmit",
+    "preview": "pnpm start"
+  },
+  "dependencies": {
+    "marked": "catalog:website",
+    "next": "catalog:website",
+    "react": "catalog:website",
+    "react-dom": "catalog:website"
   },
   "devDependencies": {
-    "marked": "catalog:website"
+    "@types/node": "catalog:types",
+    "@types/react": "catalog:website",
+    "@types/react-dom": "catalog:website",
+    "typescript": "catalog:cli"
   }
 }

@@ -59,6 +59,8 @@
     "site:dev": "pnpm --dir apps/website dev",
     "site:build": "pnpm --dir apps/website build",
     "site:test": "pnpm --dir apps/website test",
+    "site:test:build": "pnpm --dir apps/website test:build",
+    "site:typecheck": "pnpm --dir apps/website typecheck",
     "site:preview": "pnpm --dir apps/website preview",
     "prepare": "simple-git-hooks",
     "build:playground": "pnpm --dir playground build:h5",

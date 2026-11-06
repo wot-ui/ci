@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Marked } from 'marked'
 
@@ -46,19 +45,20 @@ export function splitReadme(markdown) {
 }
 
 /** Compile canonical Markdown sources into static documentation pages and a local search index. */
-export async function loadContent(root, base = '/') {
-  const readme = await readFile(path.join(root, 'README.md'), 'utf8')
-  const sections = splitReadme(readme)
-  const resolved = await Promise.all(pages.map(async (page) => {
+export function compileContent(sources, base = '/') {
+  const sections = splitReadme(sources['README.md'])
+  const resolved = pages.map((page) => {
     const markdown = page.file
-      ? await readFile(path.join(root, page.file), 'utf8')
+      ? sources[page.file]
       : page.sections.map((name) => {
           if (!sections.has(name))
             throw new Error(`README section missing: ${name}`)
           return `## ${name}\n\n${sections.get(name)}`
         }).join('\n')
+    if (typeof markdown !== 'string')
+      throw new Error(`Document source missing: ${page.file}`)
     return { ...page, markdown, source: page.file ?? 'README.md', url: `${base}docs/${page.slug}/` }
-  }))
+  })
   const sourcePages = new Map(resolved.filter(page => page.file).map(page => [page.file, page]))
   const readmeAnchors = new Map()
   for (const page of resolved.filter(page => !page.file)) {
@@ -114,7 +114,7 @@ export async function loadContent(root, base = '/') {
         return `<div class="table-scroll" tabindex="0" role="region" aria-label="可横向滚动的表格"><table><thead><tr>${row(token.header)}</tr></thead><tbody>${token.rows.map(cells => `<tr>${row(cells)}</tr>`).join('')}</tbody></table></div>`
       },
     } })
-    const html = parser.parse(page.markdown)
+    const html = parser.parse(page.markdown, { async: false })
     return { ...page, html, toc, searchText: plainText(page.markdown).replace(/\s+/g, ' ') }
   })
 }
