@@ -39,6 +39,9 @@ export function SiteShell({ children, base, version }: { children: ReactNode, ba
     setSearchOpen(true)
   }, [closeMenu])
 
+  // Discard the previous route's open state, including when leaving via the logo.
+  useEffect(closeMenu, [closeMenu])
+
   useEffect(() => {
     setDark(document.documentElement.dataset.theme === 'dark')
   }, [])
