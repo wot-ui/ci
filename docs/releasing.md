@@ -10,7 +10,7 @@ pnpm release
 
 `bumpp` 更新版本、提交、创建精确标签并推送。`Release` 工作流依次执行：
 
-1. 检查标签与 `package.json.version` 一致，验证旧 Action 元数据及 lint、类型、构建和测试。
+1. 检查标签与 `package.json.version` 一致，执行 lint、类型、构建和测试。
 2. 通过 OIDC trusted publishing 发布 npm 包。
 3. 按明确的 tag 区间生成并发布 GitHub Release。
 
@@ -19,7 +19,8 @@ CLI 发布无需等待 Marketplace 操作。`changelogithub.config.json` 不再�
 ## 旧 Action 兼容
 
 - `wot-ui/ci@v0` 保留在拆仓前的 `v0.5.3` 提交；既有精确标签不重写。
-- 根目录 `action.yml`、相关脚本和回归测试继续保留，兼容历史调用和核心仓库自身的 CLI 验证。
+- `main` 已移除 `action.yml`、Action 专用脚本和测试。历史标签仍保存完整实现，旧调用不受影响；`wot-ui/ci@main` 不再作为 Action 入口。
+- 本仓库工作流调用独立 Action，并通过本地 CLI 入口绑定本次构建的产物，继续验证尚未发布的核心版本。
 - 旧入口的浮动引用默认选择 npm `latest`；需要固定 CLI 时仍须指定 `package-version` 或锁定项目本地依赖。
 - 原 Marketplace 条目 `wot-ui-ci` 与历史版本保留；新入口使用 `wot-ui/ci-action@v1`，新条目为 `wot-ui-ci-action`。
 
@@ -32,7 +33,6 @@ CLI 发布无需等待 Marketplace 操作。`changelogithub.config.json` 不再�
 ## 本地检查
 
 ```sh
-pnpm verify:action
 pnpm verify:release vX.Y.Z
 pnpm lint
 pnpm typecheck:all

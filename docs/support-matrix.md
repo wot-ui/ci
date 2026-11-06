@@ -40,7 +40,7 @@
 | Windows / macOS Node 20 / 24 | CI build + test；部分 bash 用例在 Windows 跳过 | 提交 66a5fd5 远端通过，见[运行时记录](verification/2026-11-04-runtime-matrix.md)；真实 IDE 待实测 |
 | 本地 macOS Node 22 / 24 / 26 | 构建、测试及消费者验证分项记录 | 见[运行时记录](verification/2026-11-04-runtime-matrix.md)，不替代远端矩阵；engines 与 Action 默认值不变 |
 | CLI / ESM JS API / CommonJS 项目配置 | `scripts/verify-capabilities.mjs`、`test/config.test.ts`、`test/exports.test.ts` | 见本地或 CI 验收记录；库无同步 require 入口 |
-| GitHub Action | `test/github-action.test.ts`、Verify Capabilities 的 composite job | 离线接线与真实平台调用分别记录 |
+| GitHub Action | [独立仓库测试](https://github.com/wot-ui/ci-action/tree/main/test)、Verify Capabilities 的独立 Action 集成 job | 离线接线与真实平台调用分别记录 |
 | Vite 构建后动作 | `test/vite.test.ts` | 单次构建动作，不包含 watch 验收 |
 
 ## 真实平台记录索引

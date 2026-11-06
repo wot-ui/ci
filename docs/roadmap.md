@@ -30,7 +30,7 @@
 | 发布编排、历史、PR 评论 | `src/release/` | 构建命令已有内部超时；历史主要是本地文件，非跨 Runner 的持久记录 |
 | 版本策略、预算、体检、初始化 | `src/version-strategy.ts`、`src/budget.ts`、`src/doctor.ts`、`src/init.ts` | 自动版本查询失败会回退；预算依据 SDK 结果判定，不能视为上传前阻断 |
 | 微信构建与诊断、IDE 联动 | `src/weixin-diagnostics.ts`、`src/ide/` | 部分功能依赖平台服务、本机 IDE 和登录态 |
-| Vite 插件、GitHub Action | `src/vite.ts`、`action.yml` | 插件只执行一次构建后动作；Action 尚无声明的结构化 outputs |
+| Vite 插件、GitHub Action | `src/vite.ts`、[独立 Action](https://github.com/wot-ui/ci-action) | 插件只执行一次构建后动作；Action 尚无声明的结构化 outputs |
 | 测试、打包消费验证、发布工作流 | `test/`、`scripts/verify-capabilities.mjs`、`.github/workflows/` | 已有跨系统单测与临时消费者验证，不等于真实 SDK 上传验证 |
 
 ### 影响下一阶段排序的发现
@@ -163,7 +163,7 @@ GitHub composite action 可通过步骤的 `GITHUB_OUTPUT` 映射公开 outputs�
 | 3 | 结果与版本来源契约 | `src/types.ts`、`src/version-strategy.ts`、`src/output/` | 降级可见、上传与预算状态分离、兼容样例和测试 |
 | 4 | 超时和取消最小闭环 | `src/batch.ts`、`src/release/`、平台执行层 | 先微信主链路验证进程清理，再扩展其它平台 |
 | 5 | release 分阶段检查与错误诊断 | `src/plan.ts`、`src/release/`、错误输出 | 构建前后检查、明确 dry-run 语义、脱敏回归 |
-| 6 | Action 结果输出与接入模板 | `action.yml`、`scripts/github-action.sh`、文档 | 可消费结果文件、二维码 artifact、history 示例 |
+| 6 | Action 结果输出与接入模板 | [独立 Action 仓库](https://github.com/wot-ui/ci-action)、接入文档 | 可消费结果文件、二维码 artifact、history 示例 |
 
 先完成任务 1～2 校准基线，再推进任务 3～5，验收后发布 0.5；任务 6 作为 0.6 的起点。排期以 SDK 兼容验证和真实平台可用条件为依据，不在缺少这些条件时承诺发布日期。
 

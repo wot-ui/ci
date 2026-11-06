@@ -55,7 +55,7 @@ docs/           路线图与发布流程
 - 覆盖率阈值 95%（statements / branches / functions / lines），`pnpm test:coverage` 会校验；CI 由 Linux Node 24 单独执行该门禁并保留报告，其余组合运行常规测试
 - 修 bug 请附能复现的用例；新增命令请覆盖参数校验、`--dry-run` 与 JSON 输出
 - 改动 CLI 行为后建议跑一遍端到端自检：`pnpm verify:capabilities`（构建 → 打包 → 临时项目安装 → 逐项执行）
-- 动了 `action.yml` 或 composite 接线，跑 `pnpm verify:action`
+- Action 实现与专用测试在 [wot-ui/ci-action](https://github.com/wot-ui/ci-action) 维护；本仓库通过独立 Action 验证当前构建的 CLI
 
 ## 提交信息
 

@@ -31,4 +31,4 @@ Action 与 CLI 独立版本管理。`wot-ui/ci-action@v1.0.0` 默认使用经过
 
 旧 `wot-ui/ci@v0` 保留在拆分前的 `v0.5.3` 提交，旧精确标签不重写。旧入口继续使用原来的 CLI 选择规则：有本地 CLI 时优先本地，否则显式 `package-version` 优先；精确 Action 标签映射为同版本 CLI，`@v0` 等浮动引用回退到 `latest`。因此固定旧 Action 并不自动固定 CLI，如需固定运行版本应显式设置 `package-version` 或锁定本地依赖。
 
-新功能与后续 Action 发布在独立仓库维护。核心仓库保留原 Action 实现，用于兼容旧入口与验证尚未发布的 CLI；新的 npm 发布不再更新旧 `v0` 标签或要求 Marketplace 上架。
+新功能与后续 Action 发布在独立仓库维护。核心仓库 `main` 已移除 Action 实现；历史标签仍保存旧实现，`wot-ui/ci@main` 使用者需迁移到独立仓库。核心工作流通过独立 Action 验证本次构建的 CLI；新的 npm 发布不再更新旧 `v0` 标签或要求 Marketplace 上架。

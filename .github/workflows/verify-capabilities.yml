@@ -19,7 +19,6 @@ on:
       - 'src/**'
       - 'scripts/**'
       - 'test/**'
-      - action.yml
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -93,7 +92,7 @@ jobs:
           path: ${{ runner.temp }}/wotci-verify/consumer/.verify
 
   action:
-    name: Composite action
+    name: Standalone Action integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -121,7 +120,7 @@ jobs:
         run: pnpm build
 
       - name: Prepare fixture project
-        # 用 action.yml 消费的同一份脚本跑真实 CLI：夹具里放一个指向本地 dist 的 wotci，
+        # 用独立 Action 验证本次构建的 CLI：夹具里放一个指向本地 dist 的 wotci，
         # 这样 action 会优先使用它，而不是去 npx 拉取线上版本。
         run: |
           set -euo pipefail
@@ -164,13 +163,13 @@ jobs:
           echo "ACTION_SUMMARY=$RUNNER_TEMP/action-summary.md" >> "$GITHUB_ENV"
 
       - name: Doctor through the action
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: doctor
           working-directory: ${{ runner.temp }}/action-fixture
 
       - name: Upload dry-run through the action
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: upload
           platform: weixin,alipay
@@ -207,7 +206,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Config-free WeChat upload via inputs
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           platform: weixin
           working-directory: ${{ runner.temp }}/action-fixture
@@ -225,7 +224,7 @@ jobs:
           WEIXIN_PRIVATE_KEY_PATH: missing-env-key
 
       - name: Config-free Alipay upload via env
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           working-directory: ${{ runner.temp }}/action-fixture
           dry-run: 'true'
@@ -239,7 +238,7 @@ jobs:
           ALIPAY_PRIVATE_KEY_PATH: keys/weixin.private.key
 
       - name: Config-free DingTalk upload via inputs
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           platform: dingtalk
           working-directory: ${{ runner.temp }}/action-fixture
@@ -265,7 +264,7 @@ jobs:
       - name: Config-free upload reports a missing artifact
         id: direct-missing-artifact
         continue-on-error: true
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           platform: weixin
           working-directory: ${{ runner.temp }}/action-fixture

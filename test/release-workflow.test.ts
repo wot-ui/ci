@@ -6,7 +6,6 @@ import process from 'node:process'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
-const metadataScript = path.join(repoRoot, 'scripts/verify-action-metadata.mjs')
 const releaseScript = path.join(repoRoot, 'scripts/verify-release.mjs')
 const tempDirs: string[] = []
 
@@ -34,59 +33,6 @@ function run(script: string, args: string[] = []): { code: number, stdout: strin
     }
   }
 }
-
-describe('verify-action-metadata', () => {
-  it('仓库内的 action.yml 通过 Marketplace 校验', () => {
-    const result = run(metadataScript)
-    expect(result.stderr).toBe('')
-    expect(result.code).toBe(0)
-    expect(result.stdout).toContain('通过校验')
-  })
-
-  it('缺少 branding.icon 的图标或 run 步骤缺少 shell 时报错', async () => {
-    const dir = await createTempDir()
-    const file = path.join(dir, 'action.yml')
-    await writeFile(file, [
-      'name: broken',
-      'description: broken action',
-      'branding:',
-      '  icon: not-a-feather-icon',
-      '  color: blue',
-      'runs:',
-      '  using: composite',
-      '  steps:',
-      '    - run: echo hi',
-      '',
-    ].join('\n'))
-
-    const result = run(metadataScript, [file])
-    expect(result.code).toBe(1)
-    expect(result.stderr).toContain('not-a-feather-icon')
-    expect(result.stderr).toContain('没声明 shell')
-  })
-
-  it('声明的 input 没有通过 INPUT_* 接线时报错', async () => {
-    const dir = await createTempDir()
-    const file = path.join(dir, 'action.yml')
-    await writeFile(file, [
-      'name: broken',
-      'description: broken action',
-      'inputs:',
-      '  command:',
-      '    description: cmd',
-      'runs:',
-      '  using: composite',
-      '  steps:',
-      '    - run: echo hi',
-      '      shell: bash',
-      '',
-    ].join('\n'))
-
-    const result = run(metadataScript, [file])
-    expect(result.code).toBe(1)
-    expect(result.stderr).toContain('INPUT_COMMAND')
-  })
-})
 
 describe('verify-release', () => {
   it('tag 与版本一致时通过', async () => {

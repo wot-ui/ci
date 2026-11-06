@@ -2,7 +2,7 @@ name: Upload Playground
 
 # 用仓库内的 playground 项目端到端验证 wot-ui-ci：
 #   1. 构建 CLI（dist）与 playground 小程序产物
-#   2. 通过 uses: ./ 调用当前提交的 Action，执行 doctor / --dry-run 校验
+#   2. 通过 uses: wot-ui/ci-action@v1.0.0 调用独立仓库的 Action，执行 doctor / --dry-run 校验
 #   3. 按选择执行上传或预览，存档 JSON、二维码、环境记录与 Job Summary
 #
 # push 到 main 时只跑 dry-run 冒烟测试，避免每个提交都占用一个上传版本。
@@ -53,7 +53,6 @@ on:
       - 'src/**'
       - 'scripts/**'
       - 'playground/**'
-      - action.yml
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -264,7 +263,7 @@ jobs:
           esac
 
       - name: Doctor
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: doctor
           working-directory: playground
@@ -276,7 +275,7 @@ jobs:
         timeout-minutes: 5
         id: network
         continue-on-error: true
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: doctor
           working-directory: playground
@@ -290,7 +289,7 @@ jobs:
       - name: Capability plan (dry-run)
         id: plan
         timeout-minutes: 5
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: ${{ steps.inputs.outputs.command }}
           working-directory: playground
@@ -304,7 +303,7 @@ jobs:
         id: upload
         if: ${{ steps.inputs.outputs.dry_run != 'true' && steps.inputs.outputs.command == 'upload' }}
         timeout-minutes: 15
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: upload
           working-directory: playground
@@ -317,7 +316,7 @@ jobs:
         id: preview
         if: ${{ steps.inputs.outputs.dry_run != 'true' && steps.inputs.outputs.command == 'preview' }}
         timeout-minutes: 15
-        uses: ./
+        uses: wot-ui/ci-action@v1.0.0
         with:
           command: preview
           working-directory: playground
