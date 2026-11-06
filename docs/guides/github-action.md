@@ -17,13 +17,13 @@ GitHub Action 已独立维护在 [wot-ui/ci-action](https://github.com/wot-ui/ci
 
 产物目录按实际项目调整，上传版本默认读取项目的 `package.json.version`。微信上传前需在公众平台生成上传私钥并配置 CI IP 白名单。
 
-- [完整工作流、三平台接入、预览与归档](https://github.com/wot-ui/ci-action/blob/main/docs/usage.md)
-- [全部 inputs 与平台扩展参数](https://github.com/wot-ui/ci-action/blob/main/docs/inputs.md)
-- [迁移指南](https://github.com/wot-ui/ci-action/blob/main/docs/migration.md)
+- [完整工作流、三平台接入、预览与归档](https://github.com/wot-ui/ci-action#使用示例)
+- [全部 inputs 与平台扩展参数](https://github.com/wot-ui/ci-action#参数参考)
+- [迁移指南](https://github.com/wot-ui/ci-action#迁移到-v2)
 
 ## 复用配置文件
 
-v2 支持 `upload`、`preview`、`doctor`，已有项目配置可通过 `config` 复用。多平台上传可指定 `platform: weixin,alipay`，详见 [配置文件示例](https://github.com/wot-ui/ci-action/blob/main/docs/usage.md#已有配置和多平台)。`release` 等发布编排命令使用独立 CLI 步骤。
+v2 支持 `upload`、`preview`、`doctor`，已有项目配置可通过 `config` 复用。多平台上传可指定 `platform: weixin,alipay`，详见 [配置文件示例](https://github.com/wot-ui/ci-action#已有配置和多平台)。`release` 等发布编排命令使用独立 CLI 步骤。
 
 ## 版本与兼容
 

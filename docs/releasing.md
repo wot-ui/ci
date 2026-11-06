@@ -28,7 +28,7 @@ CLI 发布无需等待 Marketplace 操作。`changelogithub.config.json` 不再�
 
 ## 独立 Action 发布
 
-请按 [Action 发布指南](https://github.com/wot-ui/ci-action/blob/main/docs/releasing.md) 操作：测试通过后创建 Action 标签，发布 draft 并勾选 Marketplace，稳定发布后再更新其主版本标签。
+请按 [Action 发布指南](https://github.com/wot-ui/ci-action#维护与发布) 操作：测试通过后创建 Action 标签，发布 draft 并勾选 Marketplace，稳定发布后再更新其主版本标签。
 
 ## 本地检查
 
