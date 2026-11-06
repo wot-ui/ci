@@ -970,6 +970,7 @@ jobs:
 | `config` | 可选配置文件路径；不传时支持无配置文件模式或自动发现 |
 | `working-directory` | 执行目录，默认 `.` |
 | `summary` | `$GITHUB_STEP_SUMMARY` 或指定 Markdown 文件 |
+| `json-output` | 将 CLI 的 JSON stdout 同时保存到文件，路径相对 `working-directory`；自动启用 `json`，失败退出码仍保留 |
 | `json` / `dry-run` / `network` / `yes` | 透传对应 CLI 参数 |
 | `version` | experience / version delete 的目标版本 |
 | `pr-comment` | `auto` / `true` / `false` |
@@ -1304,7 +1305,7 @@ DINGTALK_APPID=xxx DINGTALK_TOKEN=xxx pnpm upload:playground:dingtalk
 
 GitHub Actions 可参考 [.github/workflows/upload-playground.yml](.github/workflows/upload-playground.yml)。
 
-工作流会先构建 CLI 与 playground 产物，再执行 `doctor`、所选命令的 `--dry-run` 和真实上传或预览，并存档 JSON、二维码、环境与 SDK 精确版本及 Step Summary。微信 / 支付宝私钥从 Secrets 写入 `$RUNNER_TEMP` 并设置 `chmod 600`，执行结束后会删除。能力边界见 [支持矩阵](docs/support-matrix.md)，操作步骤和记录模板见 [平台验收指南](docs/platform-validation.md)。
+工作流会先构建 CLI 与 playground 产物，再通过 `uses: ./` 调用当前提交的 GitHub Action，执行 `doctor`、所选命令的 `--dry-run` 和真实上传或预览。Action 绑定本次构建的 CLI，并继续读取 `playground/wotci.config.ts`，保留支付宝 / 钉钉的自动递增等配置。通过 `json-output` 和 `summary` 保存结果，同时存档二维码、环境与 SDK 精确版本及 Step Summary。微信 / 支付宝私钥从 Secrets 写入 `$RUNNER_TEMP` 并设置 `chmod 600`，执行结束后会删除。能力边界见 [支持矩阵](docs/support-matrix.md)，操作步骤和记录模板见 [平台验收指南](docs/platform-validation.md)。
 
 需要在仓库 Secrets 中配置：
 

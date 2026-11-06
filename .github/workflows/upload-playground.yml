@@ -2,7 +2,7 @@ name: Upload Playground
 
 # 用仓库内的 playground 项目端到端验证 wot-ui-ci：
 #   1. 构建 CLI（dist）与 playground 小程序产物
-#   2. 用 doctor / --dry-run 校验配置、产物与私钥
+#   2. 通过 uses: ./ 调用当前提交的 Action，执行 doctor / --dry-run 校验
 #   3. 按选择执行上传或预览，存档 JSON、二维码、环境记录与 Job Summary
 #
 # push 到 main 时只跑 dry-run 冒烟测试，避免每个提交都占用一个上传版本。
@@ -168,6 +168,16 @@ jobs:
       - name: Build CLI
         run: pnpm build
 
+      - name: Use workspace CLI in the action
+        # working-directory 为 playground；显式绑定本次构建，避免回退到 npm 上的版本。
+        run: |
+          mkdir -p playground/node_modules/.bin
+          cat > playground/node_modules/.bin/wotci <<'EOF'
+          #!/usr/bin/env bash
+          exec node "${GITHUB_WORKSPACE}/dist/bin.mjs" "$@"
+          EOF
+          chmod +x playground/node_modules/.bin/wotci
+
       - name: Build playground
         run: |
           set -euo pipefail
@@ -254,64 +264,68 @@ jobs:
           esac
 
       - name: Doctor
-        run: node dist/bin.mjs doctor --cwd playground --config wotci.config.ts
+        uses: ./
+        with:
+          command: doctor
+          working-directory: playground
+          config: wotci.config.ts
 
       - name: Doctor network check
         # 仅作为诊断：微信上传要求 IP 在白名单内，但网络校验失败不应阻塞真实上传
         if: ${{ steps.inputs.outputs.dry_run != 'true' }}
         timeout-minutes: 5
-        run: |
-          set +e
-          output=$(node dist/bin.mjs doctor --cwd playground --config wotci.config.ts --network 2>&1)
-          status=$?
-          set -e
-          printf '%s\n' "$output"
-          if [ "$status" -ne 0 ]; then
-            echo "::warning title=Network check failed::doctor --network 未通过（常见原因：插件项目的 IP 白名单或密钥权限），继续执行所选命令。"
-          fi
+        id: network
+        continue-on-error: true
+        uses: ./
+        with:
+          command: doctor
+          working-directory: playground
+          config: wotci.config.ts
+          network: 'true'
+
+      - name: Report network diagnostic failure
+        if: ${{ steps.network.outcome == 'failure' }}
+        run: echo '::warning title=Network check failed::doctor --network 未通过，请查看诊断日志；继续执行所选命令。'
 
       - name: Capability plan (dry-run)
         id: plan
         timeout-minutes: 5
-        run: |
-          set -euo pipefail
-          node dist/bin.mjs "$COMMAND" \
-            --cwd playground \
-            --config wotci.config.ts \
-            --platform "$PLATFORM" \
-            --dry-run \
-            --json \
-            --summary "$RUNNER_TEMP/plan-summary.md" \
-            | tee "$RUNNER_TEMP/plan.json"
+        uses: ./
+        with:
+          command: ${{ steps.inputs.outputs.command }}
+          working-directory: playground
+          config: wotci.config.ts
+          platform: ${{ steps.inputs.outputs.platform }}
+          dry-run: 'true'
+          json-output: ${{ runner.temp }}/plan.json
+          summary: ${{ runner.temp }}/plan-summary.md
 
       - name: Upload
         id: upload
         if: ${{ steps.inputs.outputs.dry_run != 'true' && steps.inputs.outputs.command == 'upload' }}
         timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          node dist/bin.mjs upload \
-            --cwd playground \
-            --config wotci.config.ts \
-            --platform "$PLATFORM" \
-            --json \
-            --summary "$RUNNER_TEMP/upload-summary.md" \
-            | tee "$RUNNER_TEMP/upload.json"
+        uses: ./
+        with:
+          command: upload
+          working-directory: playground
+          config: wotci.config.ts
+          platform: ${{ steps.inputs.outputs.platform }}
+          json-output: ${{ runner.temp }}/upload.json
+          summary: ${{ runner.temp }}/upload-summary.md
 
       - name: Preview
         id: preview
         if: ${{ steps.inputs.outputs.dry_run != 'true' && steps.inputs.outputs.command == 'preview' }}
         timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          node dist/bin.mjs preview \
-            --cwd playground \
-            --config wotci.config.ts \
-            --platform "$PLATFORM" \
-            --qr-output "$RUNNER_TEMP/preview.png" \
-            --json \
-            --summary "$RUNNER_TEMP/preview-summary.md" \
-            | tee "$RUNNER_TEMP/preview.json"
+        uses: ./
+        with:
+          command: preview
+          working-directory: playground
+          config: wotci.config.ts
+          platform: ${{ steps.inputs.outputs.platform }}
+          args: --qr-output ${{ runner.temp }}/preview.png
+          json-output: ${{ runner.temp }}/preview.json
+          summary: ${{ runner.temp }}/preview-summary.md
 
       - name: Record validation context
         if: always()

@@ -21,6 +21,8 @@
 
 进入 Actions → Upload Playground → Run workflow，选择分支、`platform` 和 `command`：
 
+工作流通过 `uses: ./` 执行该提交自带的 GitHub Action，使用本次构建的 CLI 与 `playground/wotci.config.ts`，不会回退到 npm 的线上版本。Action 的 `json-output` 保存 CLI JSON，日志仍显示在步骤中；JSON 文件生成不代表命令成功，失败退出状态会继续传递给工作流。
+
 1. **先本地校验**：选择 `dry_run=true`。构建 CLI 与小程序产物，执行 doctor 和所选命令的 dry-run，不调用上传 / 预览 SDK。微信缺凭证时可用占位 appid 和临时测试私钥；支付宝、钉钉的当前工作流即使 dry-run 也要求对应 secrets。
 2. **真实上传**：选择 `command=upload`、`dry_run=false`，填写可用版本和描述（建议包含验收标识）。核对 Upload 步骤和 JSON 中的 `ok` / 平台结果，再到平台后台核对版本、描述及微信 robot。
 3. **真实预览**：微信或支付宝选择 `command=preview`、`dry_run=false`。从 artifact 取得 `preview.png`，使用对应客户端扫码，确认页面可以加载并记录客户端版本、设备和结果。钉钉 preview 在输入解析时拒绝。

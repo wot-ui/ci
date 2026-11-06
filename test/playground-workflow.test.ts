@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -7,9 +7,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 interface Step {
-  name: string
-  run?: string
-  if?: string
+  'name': string
+  'run'?: string
+  'if'?: string
+  'uses'?: string
+  'with'?: Record<string, string>
+  'continue-on-error'?: boolean
 }
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
@@ -76,35 +79,76 @@ describe.skipIf(process.platform === 'win32')('playground workflow', () => {
     })).toThrow()
   })
 
-  it.each(['upload', 'preview'])('将 %s 本地计划和真实调用传到 CLI，保留失败退出码', async (command) => {
+  it.each(['upload', 'preview'])('通过 Action 执行 %s，归档纯 JSON 并保留失败退出码', async (command) => {
     const { cwd, env } = await fixture()
-    const bin = path.join(cwd, 'bin')
-    await mkdir(bin)
-    const fakeNode = path.join(bin, 'node')
-    // eslint-disable-next-line no-template-curly-in-string -- bash 变量由工作流测试子进程解析
-    await writeFile(fakeNode, '#!/usr/bin/env bash\nprintf \'%s\\n\' "$@" > "$ARGS_FILE"\nprintf \'{"ok":true}\\n\'\nexit "${CLI_EXIT_CODE:-0}"\n')
-    await chmod(fakeNode, 0o755)
+    await mkdir(path.join(cwd, 'dist'))
+    await writeFile(path.join(cwd, 'dist/bin.mjs'), `import fs from 'node:fs'
+fs.writeFileSync(process.env.ARGS_FILE, JSON.stringify(process.argv.slice(2)))
+console.error('SDK diagnostic must stay out of the JSON artifact')
+console.log(JSON.stringify({ ok: process.env.CLI_EXIT_CODE !== '7' }))
+process.exit(Number(process.env.CLI_EXIT_CODE || 0))
+`)
     const argsFile = path.join(cwd, 'args')
-    const testEnv = { ...env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, ARGS_FILE: argsFile, COMMAND: command, PLATFORM: 'weixin' }
-    execFileSync('bash', ['-c', step('Capability plan (dry-run)').run!], { cwd, env: testEnv })
-    let args = (await readFile(argsFile, 'utf8')).trim().split('\n')
-    expect(args.slice(0, 2)).toEqual(['dist/bin.mjs', command])
-    expect(args).toContain('--dry-run')
+    const testEnv = { ...env, GITHUB_WORKSPACE: cwd, ARGS_FILE: argsFile }
+    execFileSync('bash', ['-c', step('Use workspace CLI in the action').run!], { cwd, env: testEnv })
 
-    const execute = step(command === 'preview' ? 'Preview' : 'Upload')
-    expect(execute.if).toContain('dry_run != \'true\'')
-    expect(execute.if).toContain(`command == '${command}'`)
-    execFileSync('bash', ['-c', execute.run!], { cwd, env: testEnv })
-    args = (await readFile(argsFile, 'utf8')).trim().split('\n')
-    expect(args.slice(0, 2)).toEqual(['dist/bin.mjs', command])
+    const execute = (name: string, exitCode = '0'): void => {
+      const selected = steps.find(item => item.name === name)!
+      expect(selected.uses).toBe('./')
+      expect(selected.run).toBeUndefined()
+      expect(selected.with?.config).toBe('wotci.config.ts')
+      expect(selected.with?.['working-directory']).toBe('playground')
+      const references: Record<string, string> = {
+        'steps.inputs.outputs.command': command,
+        'steps.inputs.outputs.platform': 'weixin',
+        'runner.temp': cwd,
+      }
+      const inputs = Object.fromEntries(Object.entries(selected.with!).map(([key, value]) => [
+        `INPUT_${key.toUpperCase().replaceAll('-', '_')}`,
+        value.replace(/\$\{\{\s*([\w.]+)\s*\}\}/g, (_, reference: string) => {
+          if (!(reference in references))
+            throw new Error(`Unexpected workflow reference: ${reference}`)
+          return references[reference]
+        }),
+      ]))
+      execFileSync('bash', [path.join(repoRoot, 'scripts/github-action.sh')], {
+        cwd,
+        env: { ...testEnv, ...inputs, CLI_EXIT_CODE: exitCode },
+        stdio: 'pipe',
+      })
+    }
+
+    execute('Capability plan (dry-run)')
+    let args = JSON.parse(await readFile(argsFile, 'utf8')) as string[]
+    expect(args[0]).toBe(command)
+    expect(args).toContain('--dry-run')
+    expect(args).toContain('--json')
+    expect(JSON.parse(await readFile(path.join(cwd, 'plan.json'), 'utf8'))).toEqual({ ok: true })
+
+    const name = command === 'preview' ? 'Preview' : 'Upload'
+    const selected = steps.find(item => item.name === name)!
+    expect(selected.if).toContain('dry_run != \'true\'')
+    expect(selected.if).toContain(`command == '${command}'`)
+    execute(name)
+    args = JSON.parse(await readFile(argsFile, 'utf8')) as string[]
+    expect(args[0]).toBe(command)
     expect(args).not.toContain('--dry-run')
     if (command === 'preview')
       expect(args[args.indexOf('--qr-output') + 1]).toBe(path.join(cwd, 'preview.png'))
-    expect(() => execFileSync('bash', ['-c', execute.run!], {
-      cwd,
-      env: { ...testEnv, CLI_EXIT_CODE: '1' },
-      stdio: 'pipe',
-    })).toThrow()
+    expect(JSON.parse(await readFile(path.join(cwd, `${command}.json`), 'utf8'))).toEqual({ ok: true })
+    expect(() => execute(name, '7')).toThrow(expect.objectContaining({ status: 7 }))
+    expect(JSON.parse(await readFile(path.join(cwd, `${command}.json`), 'utf8'))).toEqual({ ok: false })
+  })
+
+  it('doctor 使用当前 Action，网络诊断失败不阻塞上传', () => {
+    const doctor = steps.find(item => item.name === 'Doctor')!
+    const network = steps.find(item => item.name === 'Doctor network check')!
+    expect(doctor.uses).toBe('./')
+    expect(doctor.with).toMatchObject({ 'command': 'doctor', 'config': 'wotci.config.ts', 'working-directory': 'playground' })
+    expect(network.uses).toBe('./')
+    expect(network.with).toMatchObject({ command: 'doctor', network: 'true' })
+    expect(network['continue-on-error']).toBe(true)
+    expect(network.if).toContain('dry_run != \'true\'')
   })
 
   it('记录精确版本与失败 outcome，缺依赖记 null，环境凭证不进入元数据', async () => {
