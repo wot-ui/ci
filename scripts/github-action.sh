@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 working_directory="${INPUT_WORKING_DIRECTORY:-.}"
 cd "$working_directory"
+
+# Generated config and inline private keys never live in the checked-out project.
+action_temp="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/wotci-action.XXXXXX")"
+trap 'rm -rf -- "$action_temp"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+export INPUT_PLATFORM="${INPUT_PLATFORM:-${WOTCI_PLATFORM:-}}"
+generated_config="$(node "$script_directory/github-action-config.mjs" "$action_temp")"
 
 if [ "${INPUT_INSTALL_DEPENDENCIES:-false}" = "true" ]; then
   if [ -f pnpm-lock.yaml ]; then
@@ -30,6 +39,8 @@ fi
 
 if [ -n "${INPUT_CONFIG:-}" ]; then
   args+=("-c" "$INPUT_CONFIG")
+elif [ -n "$generated_config" ]; then
+  args+=("-c" "$generated_config")
 fi
 
 case "${INPUT_JSON:-false}" in

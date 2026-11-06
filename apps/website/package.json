@@ -1,0 +1,14 @@
+{
+  "name": "@wot-ui/ci-website",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "preview": "node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "marked": "catalog:website"
+  }
+}
