@@ -14,7 +14,7 @@ pnpm exec wotci upload -p weixin --dry-run
 # 确认计划，再执行上传
 pnpm exec wotci upload -p weixin`
 
-const actions = `# 新 inputs 需使用包含本次改动的 Action ref
+const actions = `# 所选 Action ref 需包含下方使用的 inputs
 # 项目构建完成后，无需 wotci.config.ts
 - uses: wot-ui/ci@v0
   with:
