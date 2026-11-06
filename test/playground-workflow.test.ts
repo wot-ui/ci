@@ -101,7 +101,7 @@ process.exit(Number(process.env.CLI_EXIT_CODE || 0))
     const plan = steps.find(item => item.name === 'Capability plan (dry-run)')!
     const execution = steps.find(item => item.name === (command === 'upload' ? 'Upload' : 'Preview'))!
     for (const selected of [plan, execution]) {
-      expect(selected.uses).toBe('wot-ui/ci-action@v1.0.0')
+      expect(selected.uses).toBe('wot-ui/ci-action@v2.0.0')
       expect(selected.run).toBeUndefined()
       expect(selected.with?.config).toBe('wotci.config.ts')
       expect(selected.with?.['working-directory']).toBe('playground')
@@ -117,16 +117,16 @@ process.exit(Number(process.env.CLI_EXIT_CODE || 0))
     expect(execution.if).toContain('dry_run != \'true\'')
     expect(execution.if).toContain(`command == '${command}'`)
     if (command === 'preview')
-      expect(execution.with?.args).toBe(`--qr-output \${{ runner.temp }}/preview.png`)
+      expect(execution.with?.['qrcode-output']).toBe(`\${{ runner.temp }}/preview.png`)
   })
 
   it('doctor 使用独立 Action，网络诊断失败不阻塞上传', () => {
     const doctor = steps.find(item => item.name === 'Doctor')!
     const network = steps.find(item => item.name === 'Doctor network check')!
-    expect(doctor.uses).toBe('wot-ui/ci-action@v1.0.0')
+    expect(doctor.uses).toBe('wot-ui/ci-action@v2.0.0')
     expect(doctor.with).toMatchObject({ 'command': 'doctor', 'config': 'wotci.config.ts', 'working-directory': 'playground' })
-    expect(network.uses).toBe('wot-ui/ci-action@v1.0.0')
-    expect(network.with).toMatchObject({ command: 'doctor', network: 'true' })
+    expect(network.uses).toBeUndefined()
+    expect(network.run).toBe('./node_modules/.bin/wotci doctor --config wotci.config.ts --network')
     expect(network['continue-on-error']).toBe(true)
     expect(network.if).toContain('dry_run != \'true\'')
   })

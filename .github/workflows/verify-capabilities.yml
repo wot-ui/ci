@@ -163,19 +163,19 @@ jobs:
           echo "ACTION_SUMMARY=$RUNNER_TEMP/action-summary.md" >> "$GITHUB_ENV"
 
       - name: Doctor through the action
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           command: doctor
           working-directory: ${{ runner.temp }}/action-fixture
 
       - name: Upload dry-run through the action
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           command: upload
           platform: weixin,alipay
           working-directory: ${{ runner.temp }}/action-fixture
           dry-run: 'true'
-          json: 'true'
+          json-output: ${{ runner.temp }}/action-result.json
           summary: ${{ runner.temp }}/action-summary.md
 
       - name: Assert action outputs
@@ -206,7 +206,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Config-free WeChat upload via inputs
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           platform: weixin
           working-directory: ${{ runner.temp }}/action-fixture
@@ -224,7 +224,7 @@ jobs:
           WEIXIN_PRIVATE_KEY_PATH: missing-env-key
 
       - name: Config-free Alipay upload via env
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           working-directory: ${{ runner.temp }}/action-fixture
           dry-run: 'true'
@@ -238,7 +238,7 @@ jobs:
           ALIPAY_PRIVATE_KEY_PATH: keys/weixin.private.key
 
       - name: Config-free DingTalk upload via inputs
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           platform: dingtalk
           working-directory: ${{ runner.temp }}/action-fixture
@@ -264,7 +264,7 @@ jobs:
       - name: Config-free upload reports a missing artifact
         id: direct-missing-artifact
         continue-on-error: true
-        uses: wot-ui/ci-action@v1.0.0
+        uses: wot-ui/ci-action@v2.0.0
         with:
           platform: weixin
           working-directory: ${{ runner.temp }}/action-fixture

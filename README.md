@@ -65,7 +65,7 @@ Action 已独立到 [wot-ui/ci-action](https://github.com/wot-ui/ci-action)。�
 在工作流完成构建后添加以下步骤，无需额外配置文件：
 
 ```yaml
-- uses: wot-ui/ci-action@v1
+- uses: wot-ui/ci-action@v2
   with:
     platform: weixin
     project-path: dist/build/mp-weixin
