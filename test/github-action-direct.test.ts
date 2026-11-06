@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -63,6 +63,34 @@ process.exit(Number(process.env.FAKE_EXIT_CODE || 0))
       timeout: 20000,
     }),
     captured: async () => JSON.parse(await readFile(outputFile, 'utf8')),
+  }
+}
+
+async function createRealCliFixture() {
+  const fixture = await createFixture()
+  const tsxLoader = import.meta.resolve('tsx')
+  // Emulate npx's executable boundary using the source CLI, with no registry
+  // traffic or SDK calls. No local wotci executable remains in the fixture.
+  const fakeNpx = path.join(fixture.cwd, 'npx')
+  await writeFile(fakeNpx, `#!/usr/bin/env node
+const { spawnSync } = require('node:child_process')
+const fs = require('node:fs')
+const args = process.argv.slice(2)
+const child = spawnSync(process.execPath, ['--import', ${JSON.stringify(tsxLoader)}, ${JSON.stringify(path.join(repoRoot, 'src/bin.ts'))}, ...args.slice(2)], { encoding: 'utf8', env: process.env })
+fs.writeFileSync(process.env.OUTPUT_FILE, child.stdout || '')
+process.stderr.write(child.stderr || '')
+process.exit(child.status ?? 1)
+`)
+  await chmod(fakeNpx, 0o755)
+  await rm(path.dirname(path.dirname(fixture.cli)), { recursive: true })
+  return {
+    ...fixture,
+    run: (extra: Record<string, string> = {}) => fixture.run({
+      INPUT_JSON: 'true',
+      INPUT_DRY_RUN: 'true',
+      ...extra,
+      PATH: `${fixture.cwd}:${process.env.PATH}`,
+    }),
   }
 }
 
@@ -217,32 +245,129 @@ describe.skipIf(process.platform === 'win32')('config-free composite action', ()
     expect(preview.status, preview.stderr).toBe(0)
   })
 
-  it.each(['weixin', 'alipay', 'dingtalk'])('real CLI validates %s upload with no project config or installed package', async (platform) => {
+  it('falls back to env for blank inputs and ignores credentials for other platforms', async () => {
     const fixture = await createFixture()
-    const tsxLoader = import.meta.resolve('tsx')
-    // Emulate npx's executable boundary using the source CLI, with no registry
-    // traffic or SDK calls. No local wotci executable remains in the fixture.
-    const fakeNpx = path.join(fixture.cwd, 'npx')
-    await writeFile(fakeNpx, `#!/usr/bin/env node
-const { spawnSync } = require('node:child_process')
+    const result = fixture.run({
+      ...weixinInputs(),
+      INPUT_APPID: '  ',
+      INPUT_PRIVATE_KEY: '',
+      INPUT_UPLOAD_VERSION: ' ',
+      INPUT_UPLOAD_DESC: '',
+      WEIXIN_APPID: 'env-app',
+      WEIXIN_PRIVATE_KEY: privateKey,
+      WEIXIN_ROBOT: '30',
+      WOTCI_VERSION: '2.2.0',
+      WOTCI_DESC: 'env description',
+      ALIPAY_PRIVATE_KEY_PATH: 'unrelated-missing.pem',
+      DINGTALK_TOKEN: 'unrelated-token',
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect((await fixture.captured()).config).toMatchObject({ version: '2.2.0', desc: 'env description', weixin: { appid: 'env-app', robot: 30 } })
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it('rejects conflicting env key forms before invoking the CLI', async () => {
+    const fixture = await createFixture()
+    const result = fixture.run({
+      ...weixinInputs(),
+      INPUT_PRIVATE_KEY: '',
+      WEIXIN_PRIVATE_KEY: privateKey,
+      WEIXIN_PRIVATE_KEY_PATH: 'existing.pem',
+    })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('只能提供一个')
+    expect(result.stdout + result.stderr).not.toContain(privateKey)
+    await expect(readFile(fixture.outputFile)).rejects.toThrow()
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it('cleans materialized credentials when dependency installation fails before the CLI starts', async () => {
+    const fixture = await createFixture()
+    const npm = path.join(fixture.cwd, 'npm')
+    await writeFile(npm, `#!/usr/bin/env node
 const fs = require('node:fs')
-const args = process.argv.slice(2)
-const child = spawnSync(process.execPath, ['--import', ${JSON.stringify(tsxLoader)}, ${JSON.stringify(path.join(repoRoot, 'src/bin.ts'))}, ...args.slice(2)], { encoding: 'utf8', env: process.env })
-fs.writeFileSync(process.env.OUTPUT_FILE, child.stdout || '')
-process.stderr.write(child.stderr || '')
-process.exit(child.status ?? 1)
+const path = require('node:path')
+const temporary = fs.readdirSync(process.env.RUNNER_TEMP).find(name => name.startsWith('wotci-action.'))
+const key = path.join(process.env.RUNNER_TEMP, temporary, 'private.key')
+fs.writeFileSync(path.join(process.cwd(), 'install-observed.json'), JSON.stringify({ keyMode: fs.statSync(key).mode & 0o777 }))
+process.exit(17)
 `)
-    await chmod(fakeNpx, 0o755)
-    await rm(path.dirname(path.dirname(fixture.cli)), { recursive: true })
+    await chmod(npm, 0o755)
+    const result = fixture.run({ ...weixinInputs(), INPUT_INSTALL_DEPENDENCIES: 'true', PATH: `${fixture.cwd}:${process.env.PATH}` })
+    expect(result.status, result.stderr).toBe(17)
+    expect(JSON.parse(await readFile(path.join(fixture.cwd, 'install-observed.json'), 'utf8'))).toEqual({ keyMode: 0o600 })
+    await expect(readFile(fixture.outputFile)).rejects.toThrow()
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  })
+
+  it.each([
+    { input: '3.0.0', env: '2.0.0', expected: '3.0.0', packagePresent: true },
+    { input: '', env: '2.0.0', expected: '2.0.0', packagePresent: true },
+    { input: '3.0.0', env: '', expected: '3.0.0', packagePresent: false },
+  ])('real CLI resolves upload version through inputs/env/package: %j', async ({ input, env, expected, packagePresent }) => {
+    const fixture = await createRealCliFixture()
+    if (!packagePresent)
+      await rm(path.join(fixture.cwd, 'package.json'))
+    const result = fixture.run({ ...weixinInputs(), INPUT_UPLOAD_VERSION: input, WOTCI_VERSION: env })
+    expect(result.status, result.stderr).toBe(0)
+    expect((await fixture.captured()).results[0].result.version).toBe(expected)
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  }, 20000)
+
+  it.each(['project-inline-key', 'project-owned-key', 'key'])('real CLI reports failure and cleans up for %s', async (missing) => {
+    const fixture = await createRealCliFixture()
+    const ownedKey = path.join(fixture.cwd, 'owned.key')
+    await writeFile(ownedKey, privateKey)
+    const summary = path.join(fixture.cwd, 'failure summary.md')
+    const result = fixture.run({
+      ...weixinInputs(),
+      INPUT_SUMMARY: summary,
+      ...(missing === 'key'
+        ? { INPUT_PRIVATE_KEY: '', INPUT_PRIVATE_KEY_PATH: 'missing.key' }
+        : { INPUT_PROJECT_PATH: 'missing output' }),
+      ...(missing === 'project-owned-key' ? { INPUT_PRIVATE_KEY: '', INPUT_PRIVATE_KEY_PATH: 'owned.key' } : {}),
+    })
+    expect(result.status, result.stderr).toBe(1)
+    expect((await fixture.captured()).ok).toBe(false)
+    expect(await readFile(summary, 'utf8')).toContain('| weixin | ❌ |')
+    expect(await readFile(ownedKey, 'utf8')).toBe(privateKey)
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+    expect(result.stdout + result.stderr).not.toContain(privateKey)
+  }, 20000)
+
+  it('real CLI honors a discovered config factory despite direct-mode env credentials', async () => {
+    const fixture = await createRealCliFixture()
+    await writeFile(path.join(fixture.cwd, 'owned.key'), privateKey)
+    const configFile = path.join(fixture.cwd, 'wotci.config.cjs')
+    await writeFile(configFile, `module.exports = ({ env }) => ({
+  version: '4.0.0',
+  weixin: { appid: env.WEIXIN_APPID, projectPath: 'build output', privateKeyPath: 'owned.key' },
+})`)
+    const result = fixture.run({ INPUT_PLATFORM: 'weixin', WEIXIN_APPID: 'factory-app', WEIXIN_PROJECT_PATH: 'wrong-output', WEIXIN_PRIVATE_KEY_PATH: 'wrong-key', WOTCI_VERSION: '9.0.0' })
+    expect(result.status, result.stderr).toBe(0)
+    const output = await fixture.captured()
+    expect(await realpath(output.config.sourceFile)).toBe(await realpath(configFile))
+    expect(output.results[0].result.version).toBe('4.0.0')
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  }, 20000)
+
+  it('real CLI direct inputs bypass an existing config that would throw', async () => {
+    const fixture = await createRealCliFixture()
+    await writeFile(path.join(fixture.cwd, 'wotci.config.cjs'), 'throw new Error("project config must not run")')
+    const result = fixture.run(weixinInputs())
+    expect(result.status, result.stderr).toBe(0)
+    expect((await fixture.captured()).ok).toBe(true)
+    expect(await readdir(fixture.runnerTemp)).toEqual([])
+  }, 20000)
+
+  it.each(['weixin', 'alipay', 'dingtalk'])('real CLI validates %s upload with no project config or installed package', async (platform) => {
+    const fixture = await createRealCliFixture()
     const result = fixture.run({
       INPUT_PLATFORM: platform,
       INPUT_PROJECT_PATH: 'build output',
       INPUT_APPID: 'fixture-app',
       ...(platform === 'dingtalk' ? { INPUT_TOKEN: 'test-only-token' } : { INPUT_PRIVATE_KEY: privateKey }),
       ...(platform === 'alipay' ? { INPUT_TOOL_ID: 'test-tool' } : {}),
-      INPUT_JSON: 'true',
-      INPUT_DRY_RUN: 'true',
-      PATH: `${fixture.cwd}:${process.env.PATH}`,
     })
     expect(result.status, result.stderr).toBe(0)
     const output = await fixture.captured()

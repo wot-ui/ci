@@ -27,6 +27,29 @@ async function writeFakeCli(file: string): Promise<void> {
 }
 
 describe('action.yml', () => {
+  it('passes every input to its consumer without interpolating values into shell code', async () => {
+    const action = parse(await readFile(actionPath, 'utf8')) as {
+      inputs: Record<string, { default?: string }>
+      runs: { steps: { uses?: string, run?: string, shell?: string, env?: Record<string, string>, with?: Record<string, string> }[] }
+    }
+    const execution = action.runs.steps.find(step => step.run?.includes('github-action.sh'))!
+    expect(execution.shell).toBe('bash')
+    expect(execution.run).not.toMatch(/inputs[.[]/)
+    for (const [name, definition] of Object.entries(action.inputs)) {
+      const reference = `\${{ inputs.${name} }}`
+      if (name === 'node-version') {
+        const setup = action.runs.steps.find(step => step.uses?.startsWith('actions/setup-node@'))!
+        expect(setup.with?.['node-version']).toBe(reference)
+      }
+      else {
+        const key = `INPUT_${name.toUpperCase().replaceAll('-', '_')}`
+        expect(execution.env?.[key], name).toBe(reference)
+      }
+      if (definition.default !== undefined)
+        expect(typeof definition.default, name).toBe('string')
+    }
+  })
+
   it('声明 composite action 与核心输入', async () => {
     const action = parse(await readFile(actionPath, 'utf8')) as {
       name: string
@@ -37,9 +60,8 @@ describe('action.yml', () => {
     expect(action.name).toBe('wot-ui-ci')
     expect(action.runs.using).toBe('composite')
     expect(action.runs.steps.length).toBeGreaterThan(0)
-    expect(action.inputs).toHaveProperty('command')
-    expect(action.inputs).toHaveProperty('platform')
-    expect(action.inputs).toHaveProperty('summary')
+    for (const name of ['command', 'platform', 'config', 'summary', 'project-path', 'appid', 'private-key', 'private-key-path', 'upload-version', 'upload-desc', 'robot', 'tool-id', 'token'])
+      expect(action.inputs).toHaveProperty(name)
   })
 })
 
