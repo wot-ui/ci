@@ -1,0 +1,77 @@
+// Copy this file and wotci.config.mjs into your application's root directory.
+// Agent requirements and credential IDs: docs/guides/jenkins.md.
+pipeline {
+    agent { label 'miniapp' }
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 40, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
+    }
+    parameters {
+        choice(name: 'COMMAND', choices: ['upload', 'preview'], description: '上传代码或生成预览二维码')
+        booleanParam(name: 'DRY_RUN', defaultValue: false, description: '默认实际上传或预览；首次接入可勾选，仅做本地检查')
+        string(name: 'WOTCI_VERSION', defaultValue: '', description: '留空读取 package.json.version')
+        string(name: 'WOTCI_DESC', defaultValue: '', description: '留空使用 Jenkins 构建号与提交号')
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                // Clear stale reports and build output before checkout, including failed runs.
+                deleteDir()
+                checkout scm
+                script {
+                    env.WOTCI_VERSION = params.WOTCI_VERSION.trim()
+                    env.WOTCI_DESC = params.WOTCI_DESC.trim() ?: "Jenkins #${env.BUILD_NUMBER} ${env.GIT_COMMIT.take(7)}"
+                    env.WOTCI_COMMAND = params.COMMAND
+                    env.WOTCI_DRY_RUN = params.DRY_RUN.toString()
+                }
+            }
+        }
+        stage('Install and build') {
+            steps {
+                sh '''
+                    set -eu
+                    node --version
+                    pnpm --version
+                    pnpm install --frozen-lockfile
+                    pnpm build:mp-weixin
+                '''
+            }
+        }
+        stage('Check and deliver') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'miniapp-weixin-appid', variable: 'WEIXIN_APPID'),
+                    file(credentialsId: 'miniapp-weixin-private-key', variable: 'WEIXIN_PRIVATE_KEY_PATH')
+                ]) {
+                    sh '''
+                        set +x
+                        set -eu
+                        case "$WOTCI_COMMAND" in upload|preview) ;; *) exit 2 ;; esac
+                        case "$WOTCI_DRY_RUN" in true|false) ;; *) exit 2 ;; esac
+                        mkdir -p artifacts
+                        pnpm exec wotci doctor --config wotci.config.mjs --json > artifacts/doctor.json
+                        pnpm exec wotci "$WOTCI_COMMAND" --config wotci.config.mjs -p weixin --dry-run \
+                            --json --summary artifacts/plan.md > artifacts/plan.json
+                        if [ "$WOTCI_DRY_RUN" = 'false' ]; then
+                            set -- "$WOTCI_COMMAND" --config wotci.config.mjs -p weixin
+                            if [ "$WOTCI_COMMAND" = 'preview' ]; then
+                                set -- "$@" --qr-output artifacts/preview.png
+                            fi
+                            pnpm exec wotci "$@" --json --summary artifacts/result.md > artifacts/result.json
+                        fi
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'artifacts/*.json,artifacts/*.md,artifacts/*.png', allowEmptyArchive: true
+        }
+        cleanup {
+            deleteDir()
+        }
+    }
+}

@@ -7,7 +7,8 @@
 | 使用场景 | 入口 |
 | --- | --- |
 | 在 GitHub Actions 中上传或生成预览 | [GitHub Action](github-action.md) |
-| 本地命令行、GitLab CI、Jenkins 或自建流水线 | [CLI 快速开始](getting-started.md) |
+| Jenkins 上传、预览与结果归档 | [Jenkins 示例](jenkins.md) |
+| 本地命令行、GitLab CI 或自建流水线 | [CLI 快速开始](getting-started.md) |
 | 在 JS / TS 脚本中调用 | [JavaScript API](api.md) |
 | 在 Vite / uni-app 构建完成后执行 | [Vite 插件](vite.md) |
 

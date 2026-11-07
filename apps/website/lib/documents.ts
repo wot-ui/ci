@@ -8,6 +8,7 @@ import diagnostics from '../../../docs/guides/diagnostics.md'
 import errors from '../../../docs/guides/errors.md'
 import gettingStarted from '../../../docs/guides/getting-started.md'
 import githubAction from '../../../docs/guides/github-action.md'
+import jenkins from '../../../docs/guides/jenkins.md'
 import migration from '../../../docs/guides/migration.md'
 import overview from '../../../docs/guides/overview.md'
 import playground from '../../../docs/guides/playground.md'
@@ -49,6 +50,7 @@ export const documents: DocumentPage[] = compileContent({
   'docs/guides/release.md': release,
   'docs/guides/diagnostics.md': diagnostics,
   'docs/guides/github-action.md': githubAction,
+  'docs/guides/jenkins.md': jenkins,
   'docs/guides/action-reference.md': actionReference,
   'docs/guides/vite.md': vite,
   'docs/guides/api.md': api,

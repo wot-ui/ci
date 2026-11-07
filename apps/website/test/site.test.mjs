@@ -20,7 +20,7 @@ test('standalone guides render without the repository README and ignore fenced h
 test('canonical documents retain links, anchors and search identifiers at root and subpaths', () => {
   for (const base of ['/', '/ci/']) {
     const documents = compileContent(sources, base)
-    assert.equal(documents.length, 22)
+    assert.equal(documents.length, 23)
     const byUrl = new Map(documents.map(page => [page.url, page]))
     for (const page of documents) {
       const ids = [...page.html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1])
@@ -45,6 +45,10 @@ test('canonical documents retain links, anchors and search identifiers at root a
     assert.match(integration.html, /data-copy-code/)
     assert.match(integration.html, /minifyWXSS/)
     assert.match(integration.html, /GITHUB_STEP_SUMMARY/)
+    const jenkins = documents.find(page => page.slug === 'jenkins')
+    assert.match(jenkins.html, /examples\/jenkins\/weixin\/Jenkinsfile/)
+    assert.match(jenkins.html, /examples\/jenkins\/playground\/Jenkinsfile/)
+    assert.match(jenkins.searchText, /DRY_RUN/)
     assert.ok(documents.find(page => page.slug === 'action-reference').toc.some(item => item.id === 'setting'))
     assert.match(documents.find(page => page.slug === 'action-reference').html, /platform-options/)
     assert.match(documents.find(page => page.slug === 'vite').html, /wotciPlugin/)

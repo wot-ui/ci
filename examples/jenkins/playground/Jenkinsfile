@@ -1,0 +1,113 @@
+// Pipeline from SCM: Script Path = examples/jenkins/playground/Jenkinsfile.
+// Run against a trusted branch of wot-ui/ci or your fork.
+def deliverPlayground() {
+    // Bind secret files BEFORE entering a subdirectory; Jenkins manages their cleanup.
+    dir('playground') {
+        sh '''
+            set +x
+            set -eu
+            mkdir -p artifacts
+            node ../dist/bin.mjs doctor --config wotci.config.ts --json > artifacts/doctor.json
+            node ../dist/bin.mjs "$WOTCI_COMMAND" --config wotci.config.ts -p "$WOTCI_PLATFORM" --dry-run \
+                --json --summary artifacts/plan.md > artifacts/plan.json
+            if [ "$WOTCI_DRY_RUN" = 'false' ]; then
+                set -- "$WOTCI_COMMAND" --config wotci.config.ts -p "$WOTCI_PLATFORM"
+                if [ "$WOTCI_COMMAND" = 'preview' ]; then
+                    set -- "$@" --qr-output artifacts/preview.png
+                fi
+                node ../dist/bin.mjs "$@" --json --summary artifacts/result.md > artifacts/result.json
+            fi
+        '''
+    }
+}
+
+pipeline {
+    agent { label 'miniapp' }
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 40, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
+    }
+    parameters {
+        choice(name: 'PLATFORM', choices: ['weixin', 'alipay', 'dingtalk'], description: '目标小程序平台')
+        choice(name: 'COMMAND', choices: ['upload', 'preview'], description: '钉钉仅支持 upload')
+        booleanParam(name: 'DRY_RUN', defaultValue: true, description: '仅本地检查；仍需配置所选平台的凭据')
+        string(name: 'WOTCI_VERSION', defaultValue: '', description: '微信留空读取 playground/package.json.version')
+        string(name: 'WOTCI_DESC', defaultValue: '', description: '留空使用 Jenkins 构建号与提交号')
+    }
+    stages {
+        stage('Checkout and parameters') {
+            steps {
+                deleteDir()
+                checkout scm
+                script {
+                    if (!(params.PLATFORM in ['weixin', 'alipay', 'dingtalk']) || !(params.COMMAND in ['upload', 'preview'])) {
+                        error('Unsupported platform or command')
+                    }
+                    if (params.PLATFORM == 'dingtalk' && params.COMMAND == 'preview') {
+                        error('钉钉不支持 preview，请选择 upload')
+                    }
+                    env.WOTCI_PLATFORM = params.PLATFORM
+                    env.WOTCI_COMMAND = params.COMMAND
+                    env.WOTCI_DRY_RUN = params.DRY_RUN.toString()
+                    env.WOTCI_VERSION = params.WOTCI_VERSION.trim()
+                    env.WOTCI_DESC = params.WOTCI_DESC.trim() ?: "Jenkins #${env.BUILD_NUMBER} ${env.GIT_COMMIT.take(7)}"
+                }
+            }
+        }
+        stage('Install and build') {
+            steps {
+                sh '''
+                    set -eu
+                    node --version
+                    pnpm --version
+                    pnpm install --frozen-lockfile
+                    pnpm build
+                    case "$WOTCI_PLATFORM" in
+                        weixin) pnpm --dir playground build:mp-weixin ;;
+                        alipay|dingtalk) pnpm --dir playground build:mp-alipay ;;
+                        *) exit 2 ;;
+                    esac
+                '''
+            }
+        }
+        stage('Check and deliver') {
+            steps {
+                script {
+                    if (params.PLATFORM == 'weixin') {
+                        withCredentials([
+                            string(credentialsId: 'miniapp-weixin-appid', variable: 'WEIXIN_APPID'),
+                            file(credentialsId: 'miniapp-weixin-private-key', variable: 'WEIXIN_PRIVATE_KEY_PATH')
+                        ]) {
+                            deliverPlayground()
+                        }
+                    } else if (params.PLATFORM == 'alipay') {
+                        withCredentials([
+                            string(credentialsId: 'miniapp-alipay-appid', variable: 'ALIPAY_APPID'),
+                            string(credentialsId: 'miniapp-alipay-tool-id', variable: 'ALIPAY_TOOL_ID'),
+                            file(credentialsId: 'miniapp-alipay-private-key', variable: 'ALIPAY_PRIVATE_KEY_PATH')
+                        ]) {
+                            deliverPlayground()
+                        }
+                    } else {
+                        withCredentials([
+                            string(credentialsId: 'miniapp-dingtalk-appid', variable: 'DINGTALK_APPID'),
+                            string(credentialsId: 'miniapp-dingtalk-token', variable: 'DINGTALK_TOKEN')
+                        ]) {
+                            deliverPlayground()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'playground/artifacts/*.json,playground/artifacts/*.md,playground/artifacts/*.png', allowEmptyArchive: true
+        }
+        cleanup {
+            deleteDir()
+        }
+    }
+}

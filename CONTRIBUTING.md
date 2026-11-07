@@ -81,7 +81,7 @@ feat(action): 新增 composite GitHub Action
 
 1. 一个 PR 只做一件事，尽量小
 2. 提交前本地跑通：`pnpm lint && pnpm typecheck:all && pnpm test:run`
-3. 面向用户的变化（命令、参数、配置字段、行为）同步更新 `docs/guides/` 中的对应指南；根 README 保留 CI 工具介绍、快速开始与各接入方式的入口
+3. 面向用户的变化（命令、参数、配置字段、行为）同步更新 `docs/guides/` 中的对应指南；根 README 同步维护工具介绍、接入示例、常用配置参数与各接入方式的入口
 4. 不要提交私钥、appid、真实项目配置；`dist`、`coverage`、`.wotci`、`.pnpm-store` 已在 `.gitignore` 中
 5. CI 会跑 lint + typecheck，以及八组矩阵（Linux Node 20/22/24/26、Windows Node 20/24、macOS Node 20/24）的 build + test；Linux Node 24 执行覆盖率门禁。能力自检在 Linux Node 20/22/24/26 打包、安装并验证消费者项目，另有 playground 冒烟
 

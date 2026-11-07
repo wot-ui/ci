@@ -38,7 +38,7 @@ wotci upload --all --summary "$GITHUB_STEP_SUMMARY"
 ```
 
 - 单个平台失败不中断其它平台，最终退出码为 `1`
-- `--dry-run` 只做本地校验：配置、产物目录、私钥、版本；不调用 SDK、不请求网络、不写文件
+- `--dry-run` 只做本地计划校验：配置对象、产物目录、私钥、版本；不调用上传 SDK、不请求网络。显式 `--summary` 仍会写摘要，Shell 重定向也会创建文件；必填字段可另用 doctor 检查
 - `--summary` 生成 Markdown 表格，可直接写入 `$GITHUB_STEP_SUMMARY`
 
 ## CI 输出 JSON 与 Step Summary

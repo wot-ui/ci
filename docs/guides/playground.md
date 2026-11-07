@@ -28,3 +28,7 @@ GitHub Actions 可参考 [.github/workflows/upload-playground.yml](../../.github
 - 钉钉：`DINGTALK_APPID`、`DINGTALK_TOKEN`
 
 支持手动触发并选择 `command=upload/preview`、平台、版本、描述、上传机器人（1-30）以及 `dry-run`；preview 支持微信和支付宝，扫码结果需另外记录。push 到 `main` 且改动涉及 CLI / playground 时只跑 dry-run 冒烟测试，不会消耗上传版本。微信上传要求调用方 IP 在白名单内，GitHub 托管 Runner 的出口 IP 不固定，需要在微信公众平台关闭 IP 白名单（或改用自建 Runner）。
+
+## Jenkins
+
+可使用 [Playground Jenkinsfile](../../examples/jenkins/playground/Jenkinsfile) 从 SCM 运行本仓库，按参数选择三平台上传或微信 / 支付宝预览，默认 dry-run。节点要求、凭据映射和首次运行步骤见 [Jenkins 接入指南](jenkins.md)。

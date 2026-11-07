@@ -37,3 +37,5 @@ wotci preview -p alipay --qr-output dist/preview-alipay.png
 - **微信**：支持 `terminal` / `image` / `base64`；`image` 返回本地文件路径，`base64` 会把内容读入结果
 - **支付宝**：返回远程 `qrcodeUrl`；传 `--qr-output` 时下载到本地
 - **钉钉**：SDK 未暴露预览能力，返回明确的不支持错误
+
+完整配置字段见[微信预览配置](configuration.md#微信预览-preview)和[支付宝预览配置](configuration.md#支付宝预览-preview)。CLI 的 `--page-query`、`--desc`、`--robot` 在批量分支（包括添加 `--json` 或 `--summary`）下当前不转发；此时请使用平台 preview 配置，详见[CLI 预览参数](commands.md#预览参数)。

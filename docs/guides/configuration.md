@@ -1,4 +1,31 @@
-# 配置
+# 配置与参数参考
+
+本页列出 `@wot-ui/ci` 配置对象的全部已声明字段。参数按顶层、平台及嵌套对象分组，类型与行为以当前 [类型定义](../../src/types.ts) 和实现为准。未设置且标为“SDK 决定”的值，表示 Wot CI 不注入默认值；示例中显式填写的值也不等于库的默认值。
+
+| 需要查什么 | 入口 |
+| --- | --- |
+| appid、私钥、产物、编译与预览配置 | 本页下方各平台参数表 |
+| 命令行开关与生效命令 | [CLI 完整参数表](commands.md#全部-cli-参数) |
+| JS 调用的 request / options | [JS API 参数参考](api.md#参数参考) |
+| Vite 构建插件 | [Vite 插件参数](vite.md#插件参数) |
+| GitHub Action inputs | [Action 参数参考](action-reference.md) |
+| Jenkins 构建参数和凭据映射 | [Jenkins 接入](jenkins.md) |
+
+## 顶层配置
+
+`defineConfig()` 接收配置对象，或同步 / 异步返回配置对象的工厂函数。以下字段均为可选；执行某个平台的动作时，必须提供该平台所需的配置。
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- |
+| `version` | `string` | `package.json.version` | 上传版本；微信上传必需，支付宝 / 钉钉关闭自动递增时必需 |
+| `desc` | `string` | `package.json.description` | 描述；微信传给 SDK，支付宝 / 钉钉当前仅在本地上传结果与消息中使用 |
+| `weixin` | `WeixinConfig` | 未配置 | 微信小程序 / 小游戏及插件配置 |
+| `alipay` | `AlipayConfig` | 未配置 | 支付宝及其终端配置 |
+| `dingtalk` | `DingtalkConfig` | 未配置 | 钉钉上传配置 |
+| `dd` | `DingtalkConfig` | 未配置 | 历史别名；与 `dingtalk` 同时存在时后者优先 |
+| `versionStrategy` | `VersionStrategy` | 使用加载后的 `version` | 本次上传的版本解析策略，不修改 package.json |
+| `budgets` | `BudgetConfig` | 不检查预算 | 根据微信 SDK 返回的包体积检查 |
+| `release` | `ReleaseConfig` | 见下方发布参数表 | 仅用于 `release` 构建、上传与记录编排 |
 
 ## 配置加载顺序
 
@@ -17,7 +44,9 @@
 11. `package.json` 中的 `uni-mini-ci` 字段（兼容旧项目）
 12. `package.json` 的 `version` / `description` 默认值
 
-`version` 和 `desc` 没有显式配置时，会分别回退到 `package.json` 的 `version` 和 `description`。
+配置来源之间不会逐层合并；命中一个来源后，只给值为 `undefined` 的 `version`、`desc` 补上 package.json 默认值。空字符串不会触发此回退。
+
+`projectPath`、`privateKeyPath`、输出路径等相对路径都基于 CLI 的 `--cwd` / JS 的 `cwd`（缺省为进程工作目录），不是配置文件所在目录。库不会自动查找产物目录；`init` 生成模板时才会探测目录。
 
 ## 用 init 生成配置
 
@@ -39,6 +68,8 @@ wotci init --dry-run --json
 生成后按环境变量注入 appid / 私钥路径即可，例如：
 
 ```ts
+import { defineConfig } from '@wot-ui/ci'
+
 export default defineConfig(({ env, packageJson }) => ({
   version: env.WOTCI_VERSION ?? packageJson?.version,
   weixin: {
@@ -99,67 +130,221 @@ export default defineConfig(({ env, packageJson }) => ({
 
 ## 微信 weixin
 
-| 字段 | 类型 | 必填 | 说明 |
+以下必填要求针对 SDK 上传 / 预览。仅操作 IDE 时依赖产物路径和 IDE 安装，不使用代码上传私钥。
+
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `projectPath` | `string` | 是 | 无 | 小程序产物目录，如 `dist/build/mp-weixin` |
+| `appid` | `string` | 是 | 无 | 小程序 / 小游戏 appid |
+| `privateKeyPath` | `string` | 是 | 无 | 代码上传密钥文件路径；在公众平台生成并配置 CI IP 白名单 |
+| `type` | `ProjectType` | 否 | `miniProgram` | 项目类型，见下表 |
+| `ignores` | `string[]` | 否 | SDK 决定 | 项目排除规则；也用于上传 / 预览前的构建 npm |
+| `robot` | `number` | 否 | SDK 决定 | CI 机器人编号，1～30；模板常显式设置为 1 |
+| `setting` | `WeixinUploadSetting` | 否 | SDK 决定 | 上传编译设置，见下表 |
+| `preview` | `WeixinPreviewConfig` | 否 | 见预览参数表 | 预览动作的专属配置 |
+| `ide` | `WeixinIdeConfig` | 否 | 见 IDE 参数表 | 开发者工具配置 |
+
+### 项目类型 type
+
+| 值 | 含义 |
+| --- | --- |
+| `miniProgram` | 小程序 |
+| `miniGame` | 小游戏 |
+| `miniProgramPlugin` | 小程序插件 |
+| `miniGamePlugin` | 小游戏插件 |
+
+微信线上版本查询只支持后两种插件类型；普通小程序请使用本地版本或 `fixed` / `package` 策略。
+
+### 编译设置 setting
+
+全部字段可选，Wot CI 原样传给 `miniprogram-ci`，不统一补 `true` 或 `false`。项目设置与 SDK 的合并规则由 SDK 决定。
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- |
-| `projectPath` | `string` | 是 | 小程序产物目录，例如 `dist/build/mp-weixin` |
-| `appid` | `string` | 是 | 小程序 / 小游戏 appid |
-| `privateKeyPath` | `string` | 是 | 代码上传密钥文件路径；密钥需在微信公众平台生成并配置 IP 白名单 |
-| `type` | `string` | 否 | `miniProgram`（默认）/ `miniGame` / `miniProgramPlugin` / `miniGamePlugin` |
-| `ignores` | `string[]` | 否 | 上传时排除的目录或文件 |
-| `robot` | `number` | 否 | 使用第几个 CI 机器人，1 ~ 30 |
-| `setting` | `object` | 否 | 上传编译设置，透传给 `miniprogram-ci` |
-| `ide` | `object` | 否 | 开发者工具配置：`cliPath`、`port`、`lang` |
-| `preview` | `object` | 否 | 预览配置：`qrcodeFormat`、`qrcodeOutputDest`、`pagePath`、`searchQuery`、`scene`、`robot` 等 |
+| `useProjectConfig` | `boolean` | SDK 决定 | 使用 `project.config.json` 中的编译设置 |
+| `es6` | `boolean` | SDK 决定 | ES6 转 ES5 |
+| `es7` | `boolean` | SDK 决定 | 增强编译 |
+| `disableUseStrict` | `boolean` | SDK 决定 | 增强编译时禁用 JS 严格模式 |
+| `minifyJS` | `boolean` | SDK 决定 | 压缩 JS |
+| `minifyWXML` | `boolean` | SDK 决定 | 压缩 WXML |
+| `minifyWXSS` | `boolean` | SDK 决定 | 压缩 WXSS |
+| `minify` | `boolean` | SDK 决定 | 压缩所有代码 |
+| `codeProtect` | `boolean` | SDK 决定 | 代码保护 |
+| `autoPrefixWXSS` | `boolean` | SDK 决定 | 样式自动补全 |
+| `compileWorklet` | `boolean` | SDK 决定 | 编译 worklet |
 
-`setting` 常用字段：
+`WeixinUploadSetting` 也允许额外的 SDK 字段（索引签名为 `unknown`）；本表列出 Wot CI 显式声明的字段，额外字段需核对所安装 SDK 的支持范围。底层说明见 [微信 CI 文档](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html)。
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `useProjectConfig` | `boolean` | 使用项目 `project.config.json` 中的设置 |
-| `es6` | `boolean` | 「es6 转 es5」 |
-| `es7` | `boolean` | 「增强编译」 |
-| `disableUseStrict` | `boolean` | 增强编译时禁用 JS 严格模式 |
-| `minifyJS` | `boolean` | 压缩 JS |
-| `minifyWXML` | `boolean` | 压缩 WXML |
-| `minifyWXSS` | `boolean` | 压缩 WXSS |
-| `minify` | `boolean` | 压缩所有代码 |
-| `codeProtect` | `boolean` | 代码保护 |
-| `autoPrefixWXSS` | `boolean` | 样式自动补全 |
-| `compileWorklet` | `boolean` | 编译 worklet |
+需要压缩时建议显式配置：
 
-微信 CI 文档：<https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html>
+```ts
+setting: {
+  useProjectConfig: true,
+  minifyJS: true,
+  minifyWXML: true,
+  minifyWXSS: true,
+}
+```
+
+### 微信预览 preview
+
+以下字段位于 `weixin.preview`，全部可选。JS 预览 request 中的对应字段优先于配置；CLI 的覆盖范围见[预览参数](commands.md#预览参数)。
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- |
+| `qrcodeFormat` | `'terminal' \| 'image' \| 'base64'` | `image` | 终端二维码、图片或 base64 内容 |
+| `qrcodeOutputDest` | `string` | image：`.wotci/preview/weixin.png`；base64：`.wotci/preview/weixin.txt` | 二维码文件路径；terminal 模式不写文件 |
+| `pagePath` | `string` | SDK 决定 | 预览启动页面，如 `pages/index/index` |
+| `searchQuery` | `string` | 未设置 | 启动参数，如 `from=ci&debug=1` |
+| `scene` | `number` | SDK 决定 | 非负整数场景值 |
+| `desc` | `string` | 顶层 `desc` | 本次预览备注 |
+| `robot` | `number` | `weixin.robot`，再交给 SDK | 1～30 |
+| `setting` | `WeixinUploadSetting` | `weixin.setting` | 一旦设置，整个对象替换上传设置，不做字段级合并 |
+| `threads` | `number` | SDK 决定 | 本地编译线程数 |
+| `bigPackageSizeSupport` | `boolean` | SDK 决定 | 请求 SDK 在预览时将主包、分包上限调整为 4M；不改变正式上传限制 |
+
+预览不执行 `versionStrategy`；传给微信预览 SDK 的版本为顶层 `version`，没有时使用 `0.0.0`。如果单独配置 `preview.setting`，需要在该对象内再次指定所需的压缩选项。
+
+### 微信 IDE ide
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- |
+| `cliPath` | `string` | `WECHAT_DEVTOOLS_CLI` → 系统常见安装路径 | 开发者工具 CLI 路径；显式配置后仅检查该路径 |
+| `port` | `number` | 当前配置值未用于执行 | 类型中已声明，但当前 IDE 执行链未读取；请传 CLI `--port` / JS `port` |
+| `lang` | `'zh' \| 'en'` | 当前配置值未用于执行 | 类型中已声明，但当前 IDE 执行链未读取；请传 CLI `--lang` / JS `lang` |
 
 ## 支付宝 alipay
 
-| 字段 | 类型 | 必填 | 说明 |
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `projectPath` | `string` | 是 | 无 | 小程序产物目录 |
+| `appid` | `string` | 是 | 无 | 小程序 appid |
+| `toolId` | `string` | 是 | 无 | [开放平台工具 ID](https://open.alipay.com/dev/workspace/key-manage/tool) |
+| `privateKey` | `string` | 二选一 | 无 | 私钥文本；非空时优先于 `privateKeyPath` |
+| `privateKeyPath` | `string` | 二选一 | 无 | 私钥文件路径 |
+| `clientType` | `AlipayClientType` | 否 | `alipay` | 目标终端，完整取值见下表 |
+| `autoincrement` | `boolean` | 否 | `false` | true 时传空版本给 SDK，由平台分配；false 时须有版本且大于查询到的最新版本 |
+| `preview` | `AlipayPreviewConfig` | 否 | 见下表 | 预览参数 |
+| `ide` | `AlipayIdeConfig` | 否 | 未设置 | 开发者工具配置 |
+
+当前上传调用固定传入 `experience: true`，此项不是可配置字段。`autoincrement` 与 `versionStrategy` 是两层行为：开启前者后，最终发送给 SDK 的版本仍为空，不以策略解析出的版本为准。不能把自动递增理解为本地必定执行 patch +1。
+
+### 终端类型 clientType
+
+| 值 | 终端 |
+| --- | --- |
+| `alipay` | 支付宝 |
+| `ampe` | AMPE |
+| `amap` | 高德 |
+| `genie` | 天猫精灵 |
+| `alios` | AliOS |
+| `uc` | UC |
+| `quark` | 夸克 |
+| `koubei` | 口碑 |
+| `alipayiot` | 支付宝 IoT |
+| `cainiao` | 菜鸟 |
+| `alihealth` | 阿里健康 |
+| `health` | 阿里医院 |
+
+这些是类型允许的取值，不表示每个终端均完成真实验收。终端行为以平台为准，另见 [支付宝 CLI 文档](https://opendocs.alipay.com/mini/02q29z)。
+
+### 支付宝预览 preview
+
+以下字段位于 `alipay.preview`，全部可选，不传时交给 SDK 处理。
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- |
-| `projectPath` | `string` | 是 | 小程序产物目录 |
-| `appid` | `string` | 是 | 小程序 appid |
-| `toolId` | `string` | 是 | 开放平台工具 ID：<https://open.alipay.com/dev/workspace/key-manage/tool> |
-| `privateKey` | `string` | 二选一 | 私钥文本内容 |
-| `privateKeyPath` | `string` | 二选一 | 私钥文件路径 |
-| `clientType` | `string` | 否 | 上传终端，默认 `alipay` |
-| `autoincrement` | `boolean` | 否 | 是否由平台自动递增版本号，默认 `false` |
-| `ide` | `object` | 否 | 开发者工具配置：`appPath` |
-| `preview` | `object` | 否 | 预览配置：`page`、`pageQuery`、`query`、`scene`、`autoPush` 等 |
+| `page` | `string` | SDK 决定 | 预览启动页面 |
+| `pageQuery` | `string` | 未设置 | 页面参数 |
+| `query` | `string` | 未设置 | 全局启动参数 |
+| `scene` | `string` | SDK 决定 | 场景值；JS request 传数字时会转换为字符串 |
+| `autoPush` | `boolean` | SDK 决定 | 自动推送到客户端 |
+| `ignoreHttpDomainCheck` | `boolean` | SDK 决定 | 忽略 HTTP 请求域名白名单校验 |
+| `ignoreWebViewDomainCheck` | `boolean` | SDK 决定 | 忽略 WebView 域名白名单校验 |
 
-`clientType` 可选值：`alipay`、`ampe`、`amap`、`genie`、`alios`、`uc`、`quark`、`koubei`、`alipayiot`、`cainiao`、`alihealth`、`health`。
+支付宝预览默认返回远程二维码 URL。下载到本地通过 CLI `--qr-output` 或 JS `qrOutput` 指定；`alipay.preview` 没有二维码输出字段，也没有微信的 `setting`、`robot`。
 
-支付宝 CLI 文档：<https://opendocs.alipay.com/mini/02q29z>
+### 支付宝 IDE ide
+
+| 字段 | 类型 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- |
+| `appPath` | `string` | SDK 决定 | 开发者工具安装路径，仅用于打开 IDE |
 
 ## 钉钉 dingtalk
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `projectPath` | `string` | 是 | 小程序产物目录 |
-| `appid` | `string` | 是 | 开放平台 MiniAppId |
-| `token` | `string` | 是 | 开放平台 API Token |
-| `projectType` | `string` | 否 | 应用类型，当前仅保留字段 |
-| `autoincrement` | `boolean` | 否 | 是否由平台自动递增版本号，默认 `false` |
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `projectPath` | `string` | 是 | 无 | 小程序产物目录，按项目实际构建结果填写 |
+| `appid` | `string` | 是 | 无 | 开放平台 MiniAppId |
+| `token` | `string` | 是 | 无 | 开放平台 API Token |
+| `projectType` | `DingtalkProjectType` | 否 | 未使用 | 兼容保留字段，当前不传给上传 SDK |
+| `autoincrement` | `boolean` | 否 | `false` | true 时传空版本由平台生成；false 时要求提供顶层版本 |
 
-钉钉上传文档：<https://github.com/open-dingtalk/dingtalk-design-cli>
+`projectType` 完整取值：
 
-`projectType` 可选值：`dingtalk-personal`、`dingtalk-biz-isv`、`dingtalk-biz`、`dingtalk-biz-custom`、`dingtalk-biz-worktab-plugin`。该字段目前不传给上传 SDK，不能据此切换上传行为。
+| 值 | 含义 |
+| --- | --- |
+| `dingtalk-personal` | 第三方个人应用 |
+| `dingtalk-biz-isv` | 第三方企业应用 |
+| `dingtalk-biz` | 企业内部应用 |
+| `dingtalk-biz-custom` | 企业定制应用 |
+| `dingtalk-biz-worktab-plugin` | 工作台组件 |
+
+这些字段值目前不能切换上传行为；钉钉没有预览配置和 IDE 配置，也不支持线上版本查询。上传实现见 [dingtalk.ts](../../src/platforms/dingtalk.ts)。
+
+## 版本策略 versionStrategy
+
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `type` | `'fixed' \| 'package' \| 'auto'` | 配置策略时必填 | 未配置策略时直接用顶层版本 | fixed 使用指定值；package 读包版本；auto 查询后递增 |
+| `version` | `string` | 否 | 顶层 `version` | 只用于 fixed |
+| `bump` | `'major' \| 'minor' \| 'patch'` | auto 必填 | 无 | 自动递增的版本段 |
+| `strict` | `boolean` | 否 | `false` | 只用于 auto；联网时要求所有目标查询成功且版本有效 |
+
+auto 查询无有效结果时按 package.json → 配置版本回退；dry-run 不联网，使用本地基础版本生成暂定计划。普通微信小程序和钉钉不能满足严格线上查询要求。完整行为及结果字段见[版本与发布](release.md#版本策略)。
+
+## 包体积预算 budgets
+
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `total` | `string \| number` | 否 | 不限制 | 总包上限，数字表示字节，如 `3145728` 或 `'3MB'` |
+| `main` | `string \| number` | 否 | 不限制 | 主包上限，如 `'1.5MB'` |
+| `warnOnly` | `boolean` | 否 | `false` | true 时超限不令批量 / CLI / release 失败，仍返回预算结果 |
+
+单位支持 B、KB、MB、GB（不区分大小写，1024 进制）；无单位字符串按字节计算，数值需非负。仅在 SDK 返回微信包体积后检查，不能当作上传前门禁；无体积数据时跳过。直接调用单平台 JS API 时需自行读取 `result.budget`，见[上传文档](upload.md#包体积预算)。
+
+## 发布编排 release
+
+以下字段位于配置文件的 `release` 对象。CLI / JS request 对应参数会覆盖这里的值。
+
+| 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
+| --- | --- | --- | --- | --- |
+| `buildCommand` | `string \| string[]` | 否 | 空命令列表 | Shell 构建命令；数组按顺序执行；没有命令时直接上传已有产物 |
+| `platforms` | `Platform[]` | 否 | 所有已配置平台 | 可选 weixin、alipay、dingtalk；按列表顺序串行上传 |
+| `history` | `boolean` | 否 | `true` | 写本地发布历史 |
+| `historyFile` | `string` | 否 | `.wotci/history.json` | 历史文件路径 |
+| `historyLimit` | `number` | 否 | `50` | 历史保留条数，使用正整数 |
+| `prComment` | `boolean \| 'auto'` | 否 | `'auto'` | false 关闭；auto 有 GitHub PR 上下文时评论；true 无上下文时记录评论错误 |
+
+release 不提交审核或上架，不提供跨 Job 的版本锁。构建 / 上传失败影响总体结果，历史和评论失败只记录附加错误。详见[发布编排](release.md#发布编排-release)。
+
+## 环境变量映射
+
+核心配置加载器不会自动把 `WEIXIN_APPID`、`WOTCI_VERSION` 等变量映射到配置，也不会自动加载 `.env` 文件。它把当前 `process.env` 交给配置工厂；必须像本页示例那样显式读取。下表是本页工厂的映射约定，不是额外的 CLI 参数：
+
+| 环境变量 | 配置字段 |
+| --- | --- |
+| `WOTCI_VERSION` / `WOTCI_DESC` | `version` / `desc` |
+| `WEIXIN_APPID` / `WEIXIN_PROJECT_PATH` | `weixin.appid` / `weixin.projectPath` |
+| `WEIXIN_PRIVATE_KEY_PATH` / `WEIXIN_ROBOT` | `weixin.privateKeyPath` / `weixin.robot`（转换为数字） |
+| `ALIPAY_APPID` / `ALIPAY_TOOL_ID` | `alipay.appid` / `alipay.toolId` |
+| `ALIPAY_PROJECT_PATH` / `ALIPAY_CLIENT_TYPE` | `alipay.projectPath` / `alipay.clientType` |
+| `ALIPAY_PRIVATE_KEY` / `ALIPAY_PRIVATE_KEY_PATH` | `alipay.privateKey` / `alipay.privateKeyPath` |
+| `ALIPAY_AUTOINCREMENT` | `alipay.autoincrement`（字符串 `'true'` 转为布尔值） |
+| `DINGTALK_APPID` / `DINGTALK_TOKEN` | `dingtalk.appid` / `dingtalk.token` |
+| `DINGTALK_PROJECT_PATH` / `DINGTALK_AUTOINCREMENT` | `dingtalk.projectPath` / `dingtalk.autoincrement`（转换布尔值） |
+
+库直接读取的环境变量包括 IDE 查找的 `WECHAT_DEVTOOLS_CLI`、IDE 启动保护的 `CI`、Vite 平台推断的 `UNI_PLATFORM`，以及[PR 评论](release.md#pr-评论)所用的 GitHub 上下文变量。Jenkins 参数如何传入配置见[Jenkins 示例](jenkins.md)；Playground 的布尔值默认策略以其配置文件为准。
 
 ## 兼容 uni-mini-ci
 

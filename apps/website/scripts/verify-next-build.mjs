@@ -38,7 +38,7 @@ try {
   const indexResponse = await fetch(`${origin}${base}search-index.json`)
   assert.equal(indexResponse.status, 200)
   const index = await indexResponse.json()
-  assert.equal(index.length, 22)
+  assert.equal(index.length, 23)
   assert.ok(index.some(page => page.text.includes('WEIXIN_APPID')))
   const htmlPages = new Map(await Promise.all([base, ...index.map(page => page.url)].map(async (url) => {
     const response = await fetch(`${origin}${url}`)
