@@ -130,13 +130,15 @@ export default defineConfig(({ env, packageJson }) => ({
 
 ## 微信 weixin
 
+官方文档：[微信 miniprogram-ci（上传、预览、密钥与 IP 白名单）](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html) · [project.config.json 配置说明](https://developers.weixin.qq.com/miniprogram/dev/devtools/projectconfig.html)。
+
 以下必填要求针对 SDK 上传 / 预览。仅操作 IDE 时依赖产物路径和 IDE 安装，不使用代码上传私钥。
 
 | 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- | --- |
 | `projectPath` | `string` | 是 | 无 | 小程序产物目录，如 `dist/build/mp-weixin` |
-| `appid` | `string` | 是 | 无 | 小程序 / 小游戏 appid |
-| `privateKeyPath` | `string` | 是 | 无 | 代码上传密钥文件路径；在公众平台生成并配置 CI IP 白名单 |
+| `appid` | `string` | 是 | 无 | 小程序 / 小游戏 appid，从[微信公众平台](https://mp.weixin.qq.com/)的小程序账号查看 |
+| `privateKeyPath` | `string` | 是 | 无 | 代码上传密钥文件路径；按[官方 CI 接入说明](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html)在公众平台生成并配置 CI IP 白名单 |
 | `type` | `ProjectType` | 否 | `miniProgram` | 项目类型，见下表 |
 | `ignores` | `string[]` | 否 | SDK 决定 | 项目排除规则；也用于上传 / 预览前的构建 npm |
 | `robot` | `number` | 否 | SDK 决定 | CI 机器人编号，1～30；模板常显式设置为 1 |
@@ -161,16 +163,16 @@ export default defineConfig(({ env, packageJson }) => ({
 
 | 字段 | 类型 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- |
-| `useProjectConfig` | `boolean` | SDK 决定 | 使用 `project.config.json` 中的编译设置 |
-| `es6` | `boolean` | SDK 决定 | ES6 转 ES5 |
-| `es7` | `boolean` | SDK 决定 | 增强编译 |
-| `disableUseStrict` | `boolean` | SDK 决定 | 增强编译时禁用 JS 严格模式 |
-| `minifyJS` | `boolean` | SDK 决定 | 压缩 JS |
-| `minifyWXML` | `boolean` | SDK 决定 | 压缩 WXML |
-| `minifyWXSS` | `boolean` | SDK 决定 | 压缩 WXSS |
-| `minify` | `boolean` | SDK 决定 | 压缩所有代码 |
-| `codeProtect` | `boolean` | SDK 决定 | 代码保护 |
-| `autoPrefixWXSS` | `boolean` | SDK 决定 | 样式自动补全 |
+| `useProjectConfig` | `boolean` | SDK 文档默认 false | 读取 [project.config.json](https://developers.weixin.qq.com/miniprogram/dev/devtools/projectconfig.html) 的设置；显式字段可覆盖相应项目设置 |
+| `es6` | `boolean` | SDK 决定 | 兼容旧配置；当前 SDK 已标为废弃，与 es7 效果相同 |
+| `es7` | `boolean` | SDK 决定 | 将 JS 编译为 ES5，对应旧版开发者工具的“增强编译” |
+| `disableUseStrict` | `boolean` | SDK 文档默认 false | 启用增强编译时，是否禁用 JS 文件严格模式 |
+| `minifyJS` | `boolean` | SDK 决定 | 上传时压缩 JS，优先级高于 minify |
+| `minifyWXML` | `boolean` | SDK 决定 | 上传时压缩 WXML，优先级高于 minify |
+| `minifyWXSS` | `boolean` | SDK 决定 | 上传时压缩 WXSS，优先级高于 minify |
+| `minify` | `boolean` | SDK 决定 | 对应开发者工具的“上传时压缩代码” |
+| `codeProtect` | `boolean` | SDK 决定 | 对应开发者工具的“上传时进行代码保护” |
+| `autoPrefixWXSS` | `boolean` | SDK 决定 | 对应开发者工具的“上传时样式自动补全” |
 | `compileWorklet` | `boolean` | SDK 决定 | 编译 worklet |
 
 `WeixinUploadSetting` 也允许额外的 SDK 字段（索引签名为 `unknown`）；本表列出 Wot CI 显式声明的字段，额外字段需核对所安装 SDK 的支持范围。底层说明见 [微信 CI 文档](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html)。
@@ -215,13 +217,15 @@ setting: {
 
 ## 支付宝 alipay
 
+官方文档：[支付宝 minidev 使用指南](https://opendocs.alipay.com/mini/02q17h) · [CLI 指令列表](https://opendocs.alipay.com/mini/02q29z)。凭据入口：[工具 ID 与工具密钥管理](https://open.alipay.com/dev/workspace/key-manage/tool) · [开发助手与密钥生成说明](https://opendocs.alipay.com/common/02kipl)。
+
 | 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- | --- |
 | `projectPath` | `string` | 是 | 无 | 小程序产物目录 |
 | `appid` | `string` | 是 | 无 | 小程序 appid |
-| `toolId` | `string` | 是 | 无 | [开放平台工具 ID](https://open.alipay.com/dev/workspace/key-manage/tool) |
-| `privateKey` | `string` | 二选一 | 无 | 私钥文本；非空时优先于 `privateKeyPath` |
-| `privateKeyPath` | `string` | 二选一 | 无 | 私钥文件路径 |
+| `toolId` | `string` | 是 | 无 | [在工具管理页创建 / 查看并复制 toolId](https://open.alipay.com/dev/workspace/key-manage/tool)，不是小程序 appid |
+| `privateKey` | `string` | 二选一 | 无 | 按[密钥生成说明](https://opendocs.alipay.com/common/02kipl)准备的私钥文本；非空时优先于 `privateKeyPath` |
+| `privateKeyPath` | `string` | 二选一 | 无 | 使用[支付宝开放平台开发助手](https://opendocs.alipay.com/common/02kipl)生成私钥后保存的本地文件路径 |
 | `clientType` | `AlipayClientType` | 否 | `alipay` | 目标终端，完整取值见下表 |
 | `autoincrement` | `boolean` | 否 | `false` | true 时传空版本给 SDK，由平台分配；false 时须有版本且大于查询到的最新版本 |
 | `preview` | `AlipayPreviewConfig` | 否 | 见下表 | 预览参数 |
@@ -272,11 +276,13 @@ setting: {
 
 ## 钉钉 dingtalk
 
+官方文档：[DingTalk Design CLI 仓库](https://github.com/open-dingtalk/dingtalk-design-cli) · [操作指南](https://open.dingtalk.com/document/download/dingtalk-design-introduction)。Wot CI 使用其中的 `dingtalk-miniapp-opensdk` 上传能力，支持范围以本项目平台矩阵为准。
+
 | 字段 | 类型 | 必填 | 默认值 / 来源 | 说明 |
 | --- | --- | --- | --- | --- |
 | `projectPath` | `string` | 是 | 无 | 小程序产物目录，按项目实际构建结果填写 |
-| `appid` | `string` | 是 | 无 | 开放平台 MiniAppId |
-| `token` | `string` | 是 | 无 | 开放平台 API Token |
+| `appid` | `string` | 是 | 无 | 在[钉钉开发者后台](https://open-dev.dingtalk.com/)查看对应小程序的 MiniAppId |
+| `token` | `string` | 是 | 无 | 从[钉钉开发者后台](https://open-dev.dingtalk.com/)获取用于上传的 API Token，传给 SDK 的 accessToken |
 | `projectType` | `DingtalkProjectType` | 否 | 未使用 | 兼容保留字段，当前不传给上传 SDK |
 | `autoincrement` | `boolean` | 否 | `false` | true 时传空版本由平台生成；false 时要求提供顶层版本 |
 
